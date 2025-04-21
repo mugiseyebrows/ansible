@@ -29,12 +29,12 @@ class ActionModule(ActionBase):
 
     TRANSFERS_FILES = True
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         """ handler for unarchive operations """
         if task_vars is None:
             task_vars = dict()
 
-        result = super(ActionModule, self).run(tmp, task_vars)
+        result = await super(ActionModule, self).run(tmp, task_vars)
         del tmp  # tmp no longer has any effect
 
         source = self._task.args.get('src', None)
@@ -60,11 +60,11 @@ class ActionModule(ActionBase):
                 # do not run the command if the line contains creates=filename
                 # and the filename already exists. This allows idempotence
                 # of command executions.
-                creates = self._remote_expand_user(creates)
-                if self._remote_file_exists(creates):
+                creates = await self._remote_expand_user(creates)
+                if await self._remote_file_exists(creates):
                     raise AnsibleActionSkip("skipped, since %s exists" % creates)
 
-            dest = self._remote_expand_user(dest)  # CCTODO: Fix path for Windows hosts.
+            dest = await self._remote_expand_user(dest)  # CCTODO: Fix path for Windows hosts.
             source = os.path.expanduser(source)
 
             if not remote_src:
@@ -84,7 +84,7 @@ class ActionModule(ActionBase):
             if not remote_src:
                 # transfer the file to a remote tmp location
                 tmp_src = self._connection._shell.join_path(self._connection._shell.tmpdir, 'source')
-                self._transfer_file(source, tmp_src)
+                await self._transfer_file(source, tmp_src)
 
             # handle diff mode client side
             # handle check mode client side
@@ -97,14 +97,14 @@ class ActionModule(ActionBase):
 
             if not remote_src:
                 # fix file permissions when the copy is done as a different user
-                self._fixup_perms2((self._connection._shell.tmpdir, tmp_src))
+                await self._fixup_perms2((self._connection._shell.tmpdir, tmp_src))
                 new_module_args['src'] = tmp_src
 
             # execute the unarchive module now, with the updated args (using ansible.legacy prefix to eliminate collections
             # collisions with local override
-            result.update(self._execute_module(module_name='ansible.legacy.unarchive', module_args=new_module_args, task_vars=task_vars))
+            result.update(await self._execute_module(module_name='ansible.legacy.unarchive', module_args=new_module_args, task_vars=task_vars))
         except AnsibleAction as e:
             result.update(e.result)
         finally:
-            self._remove_tmp_path(self._connection._shell.tmpdir)
+            await self._remove_tmp_path(self._connection._shell.tmpdir)
         return result

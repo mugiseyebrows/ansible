@@ -18,7 +18,10 @@
 from __future__ import annotations
 
 import errno
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    pass
 import functools
 import os
 import random

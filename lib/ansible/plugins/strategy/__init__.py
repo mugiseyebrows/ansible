@@ -26,6 +26,7 @@ import sys
 import threading
 import time
 import typing as t
+import asyncio
 
 from collections import deque
 
@@ -88,12 +89,12 @@ def _get_item_vars(result, task):
     return item_vars
 
 
-def results_thread_main(strategy: StrategyBase) -> None:
+async def results_task_main(strategy: StrategyBase) -> None:
     value: object
 
     while True:
         try:
-            result = strategy._final_q.get()
+            result = await strategy._final_q.get()
             if isinstance(result, StrategySentinel):
                 break
             elif isinstance(result, DisplaySend):
@@ -240,10 +241,7 @@ class StrategyBase:
         self._results: deque[TaskResult] = deque()
         self._results_lock = threading.Condition(threading.Lock())
 
-        # create the result processing thread for reading results in the background
-        self._results_thread = threading.Thread(target=results_thread_main, args=(self,))
-        self._results_thread.daemon = True
-        self._results_thread.start()
+        self._results_task = asyncio.create_task(results_task_main(self))
 
         # holds the list of active (persistent) connections to be shutdown at
         # play completion
@@ -272,7 +270,7 @@ class StrategyBase:
         self._hosts_cache_all = [h.name for h in self._inventory.get_hosts(pattern=_pattern, ignore_restrictions=True)]
         self._hosts_cache = [h.name for h in self._inventory.get_hosts(play.hosts, order=play.order)]
 
-    def cleanup(self):
+    async def cleanup(self):
         # close active persistent connections
         for sock in self._active_connections.values():
             try:
@@ -281,10 +279,10 @@ class StrategyBase:
             except ConnectionError as e:
                 # most likely socket is already closed
                 display.debug("got an error while closing persistent connection: %s" % e)
-        self._final_q.put(_sentinel)
-        self._results_thread.join()
+        self._final_q.put_nowait(_sentinel)
+        await self._results_task
 
-    def run(self, iterator, play_context, result=0):
+    async def run(self, iterator, play_context, result=0):
         # execute one more pass through the iterator without peeking, to
         # make sure that all of the hosts are advanced to their final task.
         # This should be safe, as everything should be IteratingStates.COMPLETE by
@@ -324,7 +322,7 @@ class StrategyBase:
         vars['ansible_current_hosts'] = self.get_hosts_remaining(play)
         vars['ansible_failed_hosts'] = self.get_failed_hosts(play)
 
-    def _queue_task(self, host, task, task_vars, play_context):
+    async def _queue_task(self, host, task, task_vars, play_context):
         """ handles queueing the task up to be sent to a worker """
 
         display.debug("entering _queue_task() for %s/%s" % (host.name, task.action))
@@ -397,7 +395,7 @@ class StrategyBase:
                 if queued:
                     break
                 elif self._cur_worker == starting_worker:
-                    time.sleep(0.0001)
+                    await asyncio.sleep(0.0001)
 
             self._pending_results += 1
         except (EOFError, IOError, AssertionError) as e:
@@ -774,7 +772,7 @@ class StrategyBase:
 
         return ret_results
 
-    def _wait_on_pending_results(self, iterator):
+    async def _wait_on_pending_results(self, iterator):
         """
         Wait for the shared counter to drop to zero, using a short sleep
         between checks to ensure we don't spin lock
@@ -791,7 +789,7 @@ class StrategyBase:
             results = self._process_pending_results(iterator)
             ret_results.extend(results)
             if self._pending_results > 0:
-                time.sleep(C.DEFAULT_INTERNAL_POLL_INTERVAL)
+                await asyncio.sleep(C.DEFAULT_INTERNAL_POLL_INTERVAL)
 
         display.debug("no more pending results, returning what we have")
 

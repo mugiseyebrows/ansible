@@ -7,7 +7,10 @@ import enum
 import json
 import os
 import pathlib
-import pwd
+try:
+    import pwd
+except ImportError:
+    pass
 import typing as t
 
 from ..io import (

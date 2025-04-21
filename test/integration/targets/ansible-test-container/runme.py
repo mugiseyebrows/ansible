@@ -12,7 +12,10 @@ import json
 import os
 import pathlib
 import platform
-import pwd
+try:
+    import pwd
+except ImportError:
+    pass
 import re
 import secrets
 import shlex

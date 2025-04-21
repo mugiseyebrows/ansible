@@ -31,7 +31,10 @@ else:
 import collections.abc as c
 import codecs
 import ctypes.util
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    pass
 import getpass
 import io
 import logging
@@ -39,11 +42,18 @@ import os
 import secrets
 import subprocess
 import sys
-import termios
+try:
+    import termios
+except ImportError:
+    class termios:
+        TCSAFLUSH = 0
 import textwrap
 import threading
 import time
-import tty
+try:
+    import tty
+except ImportError:
+    pass
 import typing as t
 
 from functools import wraps
@@ -59,7 +69,6 @@ from ansible.module_utils.common.messages import ErrorSummary, WarningSummary, D
 from ansible.module_utils.six import text_type
 from ansible.module_utils._internal import _traceback
 from ansible.utils.color import stringc
-from ansible.utils.multiprocessing import context as multiprocessing_context
 from ansible.utils.singleton import Singleton
 
 if t.TYPE_CHECKING:
@@ -68,11 +77,16 @@ if t.TYPE_CHECKING:
 
 P = t.ParamSpec('P')
 
-_LIBC = ctypes.cdll.LoadLibrary(ctypes.util.find_library('c'))
-# Set argtypes, to avoid segfault if the wrong type is provided,
-# restype is assumed to be c_int
-_LIBC.wcwidth.argtypes = (ctypes.c_wchar,)
-_LIBC.wcswidth.argtypes = (ctypes.c_wchar_p, ctypes.c_int)
+_LIBC = None
+try:
+    _LIBC = ctypes.cdll.LoadLibrary(ctypes.util.find_library('c'))
+    # Set argtypes, to avoid segfault if the wrong type is provided,
+    # restype is assumed to be c_int
+    _LIBC.wcwidth.argtypes = (ctypes.c_wchar,)
+    _LIBC.wcswidth.argtypes = (ctypes.c_wchar_p, ctypes.c_int)
+except TypeError:
+    pass
+
 # Max for c_int
 _MAX_INT = 2 ** (ctypes.sizeof(ctypes.c_int) * 8 - 1) - 1
 
@@ -108,6 +122,9 @@ def get_text_width(text: str) -> int:
     """
     if not isinstance(text, text_type):
         raise TypeError('get_text_width requires text, not %s' % type(text))
+
+    if _LIBC is None:
+        return len(text)
 
     try:
         width = _LIBC.wcswidth(text, _MAX_INT)
@@ -242,6 +259,8 @@ def setraw(fd: int, when: int = termios.TCSAFLUSH) -> None:
     over the fork, but before it can be displayed, this plugin will have continued executing, potentially
     setting stdout and stdin to raw which remove output post processing that commonly converts NL to CRLF
     """
+    if sys.platform == 'win32':
+        return
     mode = termios.tcgetattr(fd)
     mode[tty.IFLAG] = mode[tty.IFLAG] & ~(termios.BRKINT | termios.ICRNL | termios.INPCK | termios.ISTRIP | termios.IXON)
     mode[tty.OFLAG] = mode[tty.OFLAG] & ~(termios.OPOST)
@@ -359,8 +378,6 @@ class Display(metaclass=Singleton):
 
         This is only needed in ansible.executor.process.worker:WorkerProcess._run
         """
-        if multiprocessing_context.parent_process() is None:
-            raise RuntimeError('queue cannot be set in parent process')
         self._final_q = queue
 
     def set_cowsay_info(self) -> None:
@@ -380,11 +397,6 @@ class Display(metaclass=Singleton):
     ) -> c.Callable[..., None]:
         @wraps(func)
         def wrapper(self, *args: P.args, **kwargs: P.kwargs) -> None:
-            if self._final_q:
-                # If _final_q is set, that means we are in a WorkerProcess
-                # and instead of displaying messages directly from the fork
-                # we will proxy them through the queue
-                return self._final_q.send_display(func.__name__, *args, **kwargs)
             return func(self, *args, **kwargs)
         return wrapper
 
@@ -973,7 +985,10 @@ class Display(metaclass=Singleton):
 
     def _set_column_width(self) -> None:
         if os.isatty(1):
-            tty_size = unpack('HHHH', fcntl.ioctl(1, termios.TIOCGWINSZ, pack('HHHH', 0, 0, 0, 0)))[1]
+            if sys.platform == 'win32':
+                tty_size = 80
+            else:
+                tty_size = unpack('HHHH', fcntl.ioctl(1, termios.TIOCGWINSZ, pack('HHHH', 0, 0, 0, 0)))[1]
         else:
             tty_size = 0
         self.columns = max(79, tty_size - 1)

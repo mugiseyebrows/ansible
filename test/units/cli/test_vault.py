@@ -83,25 +83,25 @@ class TestVaultCli(unittest.TestCase):
 
     @patch('ansible.cli.vault.VaultCLI.setup_vault_secrets')
     @patch('ansible.cli.vault.VaultEditor')
-    def test_encrypt(self, mock_vault_editor, mock_setup_vault_secrets):
+    async def test_encrypt(self, mock_vault_editor, mock_setup_vault_secrets):
         mock_setup_vault_secrets.return_value = [('default', TextVaultSecret('password'))]
         cli = VaultCLI(args=['ansible-vault', 'encrypt', '/dev/null/foo'])
         cli.parse()
-        cli.run()
+        await cli.run()
 
     @patch('ansible.cli.vault.VaultCLI.setup_vault_secrets')
     @patch('ansible.cli.vault.VaultEditor')
-    def test_encrypt_string(self, mock_vault_editor, mock_setup_vault_secrets):
+    async def test_encrypt_string(self, mock_vault_editor, mock_setup_vault_secrets):
         mock_setup_vault_secrets.return_value = [('default', TextVaultSecret('password'))]
         cli = VaultCLI(args=['ansible-vault', 'encrypt_string',
                              'some string to encrypt'])
         cli.parse()
-        cli.run()
+        await cli.run()
 
     @patch('ansible.cli.vault.VaultCLI.setup_vault_secrets')
     @patch('ansible.cli.vault.VaultEditor')
     @patch('ansible.cli.vault.display.prompt', return_value='a_prompt')
-    def test_encrypt_string_prompt(self, mock_display, mock_vault_editor, mock_setup_vault_secrets):
+    async def test_encrypt_string_prompt(self, mock_display, mock_vault_editor, mock_setup_vault_secrets):
         mock_setup_vault_secrets.return_value = [('default', TextVaultSecret('password'))]
         cli = VaultCLI(args=['ansible-vault',
                              'encrypt_string',
@@ -109,41 +109,41 @@ class TestVaultCli(unittest.TestCase):
                              '--show-input',
                              'some string to encrypt'])
         cli.parse()
-        cli.run()
+        await cli.run()
         args, kwargs = mock_display.call_args
         assert kwargs["private"] is False
 
     @patch('ansible.cli.vault.VaultCLI.setup_vault_secrets')
     @patch('ansible.cli.vault.VaultEditor')
     @patch('ansible.cli.vault.display.prompt', return_value='a_prompt')
-    def test_shadowed_encrypt_string_prompt(self, mock_display, mock_vault_editor, mock_setup_vault_secrets):
+    async def test_shadowed_encrypt_string_prompt(self, mock_display, mock_vault_editor, mock_setup_vault_secrets):
         mock_setup_vault_secrets.return_value = [('default', TextVaultSecret('password'))]
         cli = VaultCLI(args=['ansible-vault',
                              'encrypt_string',
                              '--prompt'])
         cli.parse()
-        cli.run()
+        await cli.run()
         args, kwargs = mock_display.call_args
         assert kwargs["private"]
 
     @patch('ansible.cli.vault.VaultCLI.setup_vault_secrets')
     @patch('ansible.cli.vault.VaultEditor')
     @patch('ansible.cli.vault.display.prompt', return_value='a_prompt')
-    def test_shadowed_encrypt_string_prompt_plus(self, mock_display, mock_vault_editor, mock_setup_vault_secrets):
+    async def test_shadowed_encrypt_string_prompt_plus(self, mock_display, mock_vault_editor, mock_setup_vault_secrets):
         mock_setup_vault_secrets.return_value = [('default', TextVaultSecret('password'))]
         cli = VaultCLI(args=['ansible-vault',
                              'encrypt_string',
                              'some string to encrypt',
                              '--prompt'])
         cli.parse()
-        cli.run()
+        await cli.run()
         args, kwargs = mock_display.call_args
         assert kwargs["private"]
 
     @patch('ansible.cli.vault.VaultCLI.setup_vault_secrets')
     @patch('ansible.cli.vault.VaultEditor')
     @patch('ansible.cli.vault.sys.stdin.read', return_value='This is data from stdin')
-    def test_encrypt_string_stdin(self, mock_stdin_read, mock_vault_editor, mock_setup_vault_secrets):
+    async def test_encrypt_string_stdin(self, mock_stdin_read, mock_vault_editor, mock_setup_vault_secrets):
         mock_setup_vault_secrets.return_value = [('default', TextVaultSecret('password'))]
         cli = VaultCLI(args=['ansible-vault',
                              'encrypt_string',
@@ -151,22 +151,22 @@ class TestVaultCli(unittest.TestCase):
                              'the_var_from_stdin',
                              '-'])
         cli.parse()
-        cli.run()
+        await cli.run()
 
     @patch('ansible.cli.vault.VaultCLI.setup_vault_secrets')
     @patch('ansible.cli.vault.VaultEditor')
-    def test_encrypt_string_names(self, mock_vault_editor, mock_setup_vault_secrets):
+    async def test_encrypt_string_names(self, mock_vault_editor, mock_setup_vault_secrets):
         mock_setup_vault_secrets.return_value = [('default', TextVaultSecret('password'))]
         cli = VaultCLI(args=['ansible-vault', 'encrypt_string',
                              '--name', 'foo1',
                              '--name', 'foo2',
                              'some string to encrypt'])
         cli.parse()
-        cli.run()
+        await cli.run()
 
     @patch('ansible.cli.vault.VaultCLI.setup_vault_secrets')
     @patch('ansible.cli.vault.VaultEditor')
-    def test_encrypt_string_more_args_than_names(self, mock_vault_editor, mock_setup_vault_secrets):
+    async def test_encrypt_string_more_args_than_names(self, mock_vault_editor, mock_setup_vault_secrets):
         mock_setup_vault_secrets.return_value = [('default', TextVaultSecret('password'))]
         cli = VaultCLI(args=['ansible-vault', 'encrypt_string',
                              '--name', 'foo1',
@@ -174,7 +174,7 @@ class TestVaultCli(unittest.TestCase):
                              'other strings',
                              'a few more string args'])
         cli.parse()
-        cli.run()
+        await cli.run()
 
     @patch('ansible.cli.vault.VaultCLI.setup_vault_secrets')
     @patch('ansible.cli.vault.VaultEditor')
@@ -188,54 +188,54 @@ class TestVaultCli(unittest.TestCase):
 
     @patch('ansible.cli.vault.VaultCLI.setup_vault_secrets')
     @patch('ansible.cli.vault.VaultEditor')
-    def test_create_skip_tty_check(self, mock_vault_editor, mock_setup_vault_secrets):
+    async def test_create_skip_tty_check(self, mock_vault_editor, mock_setup_vault_secrets):
         mock_setup_vault_secrets.return_value = [('default', TextVaultSecret('password'))]
         cli = VaultCLI(args=['ansible-vault', 'create', '--skip-tty-check', '/dev/null/foo'])
         cli.parse()
-        cli.run()
+        await cli.run()
 
     @patch('ansible.cli.vault.VaultCLI.setup_vault_secrets')
     @patch('ansible.cli.vault.VaultEditor')
-    def test_create_with_tty(self, mock_vault_editor, mock_setup_vault_secrets):
+    async def test_create_with_tty(self, mock_vault_editor, mock_setup_vault_secrets):
         mock_setup_vault_secrets.return_value = [('default', TextVaultSecret('password'))]
         self.tty_stdout_patcher = patch('ansible.cli.sys.stdout.isatty', return_value=True)
         self.tty_stdout_patcher.start()
         cli = VaultCLI(args=['ansible-vault', 'create', '/dev/null/foo'])
         cli.parse()
-        cli.run()
+        await cli.run()
         self.tty_stdout_patcher.stop()
 
     @patch('ansible.cli.vault.VaultCLI.setup_vault_secrets')
     @patch('ansible.cli.vault.VaultEditor')
-    def test_edit(self, mock_vault_editor, mock_setup_vault_secrets):
+    async def test_edit(self, mock_vault_editor, mock_setup_vault_secrets):
         mock_setup_vault_secrets.return_value = [('default', TextVaultSecret('password'))]
         cli = VaultCLI(args=['ansible-vault', 'edit', '/dev/null/foo'])
         cli.parse()
-        cli.run()
+        await cli.run()
 
     @patch('ansible.cli.vault.VaultCLI.setup_vault_secrets')
     @patch('ansible.cli.vault.VaultEditor')
-    def test_decrypt(self, mock_vault_editor, mock_setup_vault_secrets):
+    async def test_decrypt(self, mock_vault_editor, mock_setup_vault_secrets):
         mock_setup_vault_secrets.return_value = [('default', TextVaultSecret('password'))]
         cli = VaultCLI(args=['ansible-vault', 'decrypt', '/dev/null/foo'])
         cli.parse()
-        cli.run()
+        await cli.run()
 
     @patch('ansible.cli.vault.VaultCLI.setup_vault_secrets')
     @patch('ansible.cli.vault.VaultEditor')
-    def test_view(self, mock_vault_editor, mock_setup_vault_secrets):
+    async def test_view(self, mock_vault_editor, mock_setup_vault_secrets):
         mock_setup_vault_secrets.return_value = [('default', TextVaultSecret('password'))]
         cli = VaultCLI(args=['ansible-vault', 'view', '/dev/null/foo'])
         cli.parse()
-        cli.run()
+        await cli.run()
 
     @patch('ansible.cli.vault.VaultCLI.setup_vault_secrets')
     @patch('ansible.cli.vault.VaultEditor')
-    def test_rekey(self, mock_vault_editor, mock_setup_vault_secrets):
+    async def test_rekey(self, mock_vault_editor, mock_setup_vault_secrets):
         mock_setup_vault_secrets.return_value = [('default', TextVaultSecret('password'))]
         cli = VaultCLI(args=['ansible-vault', 'rekey', '/dev/null/foo'])
         cli.parse()
-        cli.run()
+        await cli.run()
 
 
 @pytest.mark.parametrize('cli_args, expected', [
@@ -243,7 +243,7 @@ class TestVaultCli(unittest.TestCase):
     (['ansible-vault', 'view', 'vault.txt', '-vvv'], 3),
     (['ansible-vault', 'view', 'vault.txt', '-vv'], 2),
 ])
-def test_verbosity_arguments(cli_args, expected, tmp_path_factory, monkeypatch):
+async def test_verbosity_arguments(cli_args, expected, tmp_path_factory, monkeypatch):
     # Add a password file so we don't get a prompt in the test
     test_dir = to_text(tmp_path_factory.mktemp('test-ansible-vault'))
     pass_file = os.path.join(test_dir, 'pass.txt')
@@ -257,6 +257,6 @@ def test_verbosity_arguments(cli_args, expected, tmp_path_factory, monkeypatch):
         monkeypatch.setattr(VaultCLI, func_name, MagicMock())
 
     cli = VaultCLI(args=cli_args)
-    cli.run()
+    await cli.run()
 
     assert context.CLIARGS['verbosity'] == expected

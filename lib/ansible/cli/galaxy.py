@@ -20,6 +20,7 @@ import sys
 import textwrap
 import time
 import typing as t
+import asyncio
 
 from dataclasses import dataclass
 from yaml.error import YAMLError
@@ -615,9 +616,9 @@ class GalaxyCLI(CLI):
         display.verbosity = options.verbosity
         return options
 
-    def run(self):
+    async def run(self):
 
-        super(GalaxyCLI, self).run()
+        await super(GalaxyCLI, self).run()
 
         self.galaxy = Galaxy()
 
@@ -1877,9 +1878,11 @@ class GalaxyCLI(CLI):
         return 0
 
 
-def main(args=None):
-    GalaxyCLI.cli_executor(args)
+async def async_main(args=None):
+    await GalaxyCLI.cli_executor(args)
 
+def main(args=None):
+    asyncio.run(async_main(args))
 
 if __name__ == '__main__':
     main()

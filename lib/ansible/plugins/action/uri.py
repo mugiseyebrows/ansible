@@ -18,14 +18,14 @@ class ActionModule(ActionBase):
 
     TRANSFERS_FILES = True
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         self._supports_async = True
         self._supports_check_mode = False
 
         if task_vars is None:
             task_vars = dict()
 
-        result = super(ActionModule, self).run(tmp, task_vars)
+        result = await super(ActionModule, self).run(tmp, task_vars)
         del tmp  # tmp no longer has any effect
 
         body_format = self._task.args.get('body_format', 'raw')
@@ -38,7 +38,7 @@ class ActionModule(ActionBase):
                 # everything is remote, so we just execute the module
                 # without changing any of the module arguments
                 # call with ansible.legacy prefix to prevent collections collisions while allowing local override
-                raise _AnsibleActionDone(result=self._execute_module(module_name='ansible.legacy.uri',
+                raise _AnsibleActionDone(result=await self._execute_module(module_name='ansible.legacy.uri',
                                                                      task_vars=task_vars, wrap_async=self._task.async_val))
 
             kwargs = {}
@@ -51,8 +51,8 @@ class ActionModule(ActionBase):
 
                 tmp_src = self._connection._shell.join_path(self._connection._shell.tmpdir, os.path.basename(src))
                 kwargs['src'] = tmp_src
-                self._transfer_file(src, tmp_src)
-                self._fixup_perms2((self._connection._shell.tmpdir, tmp_src))
+                await self._transfer_file(src, tmp_src)
+                await self._fixup_perms2((self._connection._shell.tmpdir, tmp_src))
             elif body_format == 'form-multipart':
                 if not isinstance(body, Mapping):
                     raise AnsibleActionFail(
@@ -76,17 +76,17 @@ class ActionModule(ActionBase):
                         os.path.basename(filename)
                     )
                     value['filename'] = tmp_src
-                    self._transfer_file(filename, tmp_src)
-                    self._fixup_perms2((self._connection._shell.tmpdir, tmp_src))
+                    await self._transfer_file(filename, tmp_src)
+                    await self._fixup_perms2((self._connection._shell.tmpdir, tmp_src))
                 kwargs['body'] = body
 
             new_module_args = self._task.args | kwargs
 
             # call with ansible.legacy prefix to prevent collections collisions while allowing local override
-            result.update(self._execute_module('ansible.legacy.uri', module_args=new_module_args, task_vars=task_vars, wrap_async=self._task.async_val))
+            result.update(await self._execute_module('ansible.legacy.uri', module_args=new_module_args, task_vars=task_vars, wrap_async=self._task.async_val))
         except AnsibleAction as e:
             result.update(e.result)
         finally:
             if not self._task.async_val:
-                self._remove_tmp_path(self._connection._shell.tmpdir)
+                await self._remove_tmp_path(self._connection._shell.tmpdir)
         return result

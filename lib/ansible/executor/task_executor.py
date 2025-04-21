@@ -4,13 +4,12 @@
 from __future__ import annotations
 
 import os
-import time
 import json
 import pathlib
 import signal
 import subprocess
 import sys
-
+import asyncio
 import traceback
 import typing as t
 
@@ -97,7 +96,7 @@ class TaskExecutor:
 
         self._task.squash()
 
-    def run(self):
+    async def run(self):
         """
         The main executor entrypoint, where we determine if the specified
         task requires looping and either runs the task with self._run_loop()
@@ -117,7 +116,7 @@ class TaskExecutor:
 
             if items is not None:
                 if len(items) > 0:
-                    item_results = self._run_loop(items)
+                    item_results = await self._run_loop(items)
 
                     # create the overall result item
                     res = dict(results=item_results)
@@ -168,13 +167,12 @@ class TaskExecutor:
                     res = dict(changed=False, skipped=True, skipped_reason='No items in the list', results=[])
             else:
                 display.debug("calling self._execute()")
-                res = self._execute(self._task_templar, self._job_vars)
+                res = await self._execute(self._task_templar, self._job_vars)
                 display.debug("_execute() done")
 
             # make sure changed is set in the result, if it's not present
             if 'changed' not in res:
                 res['changed'] = False
-
             return res
         except Exception as ex:
             result = ActionBase.result_dict_from_exception(ex)
@@ -243,7 +241,7 @@ class TaskExecutor:
 
         return items
 
-    def _run_loop(self, items: list[t.Any]) -> list[dict[str, t.Any]]:
+    async def _run_loop(self, items: list[t.Any]) -> list[dict[str, t.Any]]:
         """
         Runs the task with the loop items specified and collates the result
         into an array named 'results' which is inserted into the final result
@@ -307,7 +305,7 @@ class TaskExecutor:
 
             # pause between loop iterations
             if loop_pause and ran_once:
-                time.sleep(loop_pause)
+                await asyncio.sleep(loop_pause)
             else:
                 ran_once = True
 
@@ -325,7 +323,7 @@ class TaskExecutor:
             (self._task, tmp_task) = (tmp_task, self._task)
             (self._play_context, tmp_play_context) = (tmp_play_context, self._play_context)
 
-            res = self._execute(templar=templar, variables=task_vars)
+            res = await self._execute(templar=templar, variables=task_vars)
 
             if self._task.register:
                 # Ensure per loop iteration results are registered in case `_execute()`
@@ -434,13 +432,13 @@ class TaskExecutor:
         self._task.delegate_to = delegated_host_name  # always override, since a templated result could be an omit (-> None)
         variables.update(delegated_vars)
 
-    def _execute(self, templar: TemplateEngine, variables: dict[str, t.Any]) -> dict[str, t.Any]:
+    async def _execute(self, templar: TemplateEngine, variables: dict[str, t.Any]) -> dict[str, t.Any]:
         result: dict[str, t.Any]
 
         with _DeferredWarningContext(variables=variables) as warning_ctx:
             try:
                 # DTFIX-FUTURE: improve error handling to prioritize the earliest exception, turning the remaining ones into warnings
-                result = self._execute_internal(templar, variables)
+                result = await self._execute_internal(templar, variables)
                 self._apply_task_result_compat(result, warning_ctx)
                 _captured.AnsibleActionCapturedError.maybe_raise_on_result(result)
             except Exception as ex:
@@ -467,7 +465,7 @@ class TaskExecutor:
 
         return result
 
-    def _execute_internal(self, templar: TemplateEngine, variables: dict[str, t.Any]) -> dict[str, t.Any]:
+    async def _execute_internal(self, templar: TemplateEngine, variables: dict[str, t.Any]) -> dict[str, t.Any]:
         """
         The primary workhorse of the executor system, this runs the task
         on the specified host (which may be the delegated_to host) and handles
@@ -641,7 +639,7 @@ class TaskExecutor:
                     old_sig = signal.signal(signal.SIGALRM, task_timeout)
                     signal.alarm(self._task.timeout)
                 with PluginExecContext(self._handler):
-                    result = self._handler.run(task_vars=vars_copy)
+                    result = await self._handler.run(task_vars=vars_copy)
 
             # DTFIX-RELEASE: nuke this, it hides a lot of error detail- remove the active exception propagation hack from AnsibleActionFail at the same time
             except (AnsibleActionFail, AnsibleActionSkip) as e:
@@ -655,7 +653,7 @@ class TaskExecutor:
                 if self._task.timeout:
                     signal.alarm(0)
                     old_sig = signal.signal(signal.SIGALRM, old_sig)
-                self._handler.cleanup()
+                await self._handler.cleanup()
             display.debug("handler run complete")
 
             # update the local copy of vars with the registered value, if specified,
@@ -665,7 +663,7 @@ class TaskExecutor:
 
             if self._task.async_val > 0:
                 if self._task.poll > 0 and not result.get('skipped') and not result.get('failed'):
-                    result = self._poll_async_result(result=result, templar=templar, task_vars=vars_copy)
+                    result = await self._poll_async_result(result=result, templar=templar, task_vars=vars_copy)
                     if result.get('failed'):
                         self._final_q.send_callback(
                             'v2_runner_on_async_failed',
@@ -772,7 +770,7 @@ class TaskExecutor:
                                 task_fields=self._task.dump_attrs()
                             ),
                         )
-                        time.sleep(delay)
+                        await asyncio.sleep(delay)
                         self._handler = self._get_action_handler(templar=templar)
         else:
             if retries > 1:
@@ -864,7 +862,7 @@ class TaskExecutor:
             else:
                 display.warning(f"Task result `deprecations` was {type(deprecations)} instead of {list}.")
 
-    def _poll_async_result(self, result, templar, task_vars=None):
+    async def _poll_async_result(self, result, templar, task_vars=None):
         """
         Polls for the specified JID to be complete
         """
@@ -903,7 +901,7 @@ class TaskExecutor:
 
         time_left = self._task.async_val
         while time_left > 0:
-            time.sleep(self._task.poll)
+            await asyncio.sleep(self._task.poll)
 
             try:
                 async_result = async_handler.run(task_vars=task_vars)

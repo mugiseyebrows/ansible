@@ -22,6 +22,7 @@ import re
 import secrets
 import shlex
 import time
+import sys
 
 from collections.abc import Mapping, Sequence
 
@@ -32,6 +33,8 @@ from ansible.plugins import AnsiblePlugin
 
 _USER_HOME_PATH_RE = re.compile(r'^~[_.A-Za-z0-9][-_.A-Za-z0-9]*$')
 
+def isabs(path):
+    return path.startswith('/')
 
 class ShellBase(AnsiblePlugin):
     def __init__(self):
@@ -53,7 +56,7 @@ class ShellBase(AnsiblePlugin):
 
         # Make sure all system_tmpdirs are absolute otherwise they'd be relative to the login dir
         # which is almost certainly going to fail in a cornercase.
-        if not all(os.path.isabs(d) for d in normalized_paths):
+        if not all(isabs(d) for d in normalized_paths):
             raise AnsibleError('The configured system_tmpdirs contains a relative path: {0}. All'
                                ' system_tmpdirs must be absolute'.format(to_native(normalized_paths)))
 
@@ -79,7 +82,7 @@ class ShellBase(AnsiblePlugin):
         return ' '.join(['%s=%s' % (k, self.quote(text_type(v))) for k, v in kwargs.items()])
 
     def join_path(self, *args):
-        return os.path.join(*args)
+        return os.path.join(*args).replace('\\','/')
 
     # some shells (eg, powershell) are snooty about filenames/extensions, this lets the shell plugin have a say
     def get_remote_filename(self, pathname):
@@ -186,6 +189,8 @@ class ShellBase(AnsiblePlugin):
 
     def pwd(self):
         """Return the working directory after connecting"""
+        if sys.platform == 'win32':
+            return 'pwd'
         return 'echo %spwd%s' % (self._SHELL_SUB_LEFT, self._SHELL_SUB_RIGHT)
 
     def build_module_command(self, env_string, shebang, cmd, arg_path=None):
@@ -222,8 +227,10 @@ class ShellBase(AnsiblePlugin):
 
     def quote(self, cmd):
         """Returns a shell-escaped string that can be safely used as one token in a shell command line"""
+        if sys.platform == 'win32':
+            return cmd
         return shlex.quote(cmd)
-
+    
     def join(self, cmd_parts):
         """Returns a shell-escaped string from a list that can be safely used in a shell command line"""
         return shlex.join(cmd_parts)

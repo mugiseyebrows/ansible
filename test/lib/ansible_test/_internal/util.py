@@ -5,7 +5,10 @@ from __future__ import annotations
 import abc
 import collections.abc as c
 import enum
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    pass
 import importlib.util
 import inspect
 import json

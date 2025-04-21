@@ -28,11 +28,20 @@ import __main__
 import atexit
 import dataclasses as _dataclasses
 import errno
-import grp
-import fcntl
+try:
+    import grp
+except ImportError:
+    pass
+try:
+    import fcntl
+except ImportError:
+    pass
 import locale
 import os
-import pwd
+try:
+    import pwd
+except ImportError:
+    pass
 import platform
 import re
 import select

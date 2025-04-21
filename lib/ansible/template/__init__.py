@@ -4,7 +4,10 @@ import contextlib as _contextlib
 import datetime as _datetime
 import io as _io
 import os as _os
-import pwd as _pwd
+try:
+    import pwd as _pwd
+except ImportError:
+    pass
 import time as _time
 import typing as _t
 

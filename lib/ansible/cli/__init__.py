@@ -51,7 +51,8 @@ def check_blocking_io():
                          'Non-blocking file handles detected: %s' % ', '.join(_io for _io in handles))
 
 
-check_blocking_io()
+if sys.platform != 'win32':
+    check_blocking_io()
 
 
 def initialize_locale():
@@ -73,8 +74,8 @@ def initialize_locale():
     if fs_enc.lower() != 'utf-8':
         raise SystemExit('ERROR: Ansible requires the filesystem encoding to be UTF-8; Detected %s.' % fs_enc)
 
-
-initialize_locale()
+if sys.platform != 'win32':
+    initialize_locale()
 
 
 import atexit
@@ -235,7 +236,7 @@ class CLI(ABC):
             )
 
     @abstractmethod
-    def run(self):
+    async def run(self):
         """Run the ansible command
 
         Subclasses must implement this method.  It does the actual work of
@@ -719,7 +720,12 @@ class CLI(ABC):
         return to_text(secret)
 
     @classmethod
-    def cli_executor(cls, args=None):
+    async def cli_executor(cls, args=None):
+
+        if sys.platform == 'win32':
+            import colorama
+            colorama.just_fix_windows_console()
+
         if args is None:
             args = sys.argv
 
@@ -738,7 +744,7 @@ class CLI(ABC):
                 display.debug("Created the '%s' directory" % ansible_dir)
 
             cli = cls(args)
-            exit_code = cli.run()
+            exit_code = await cli.run()
         except AnsibleError as ex:
             display.error(ex)
             exit_code = ex._exit_code

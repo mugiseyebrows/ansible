@@ -16,5 +16,5 @@ class CannotBePickled:
 
 class ActionModule(ActionBase):
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         return {'obj': CannotBePickled()}

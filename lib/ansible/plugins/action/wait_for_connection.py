@@ -59,7 +59,7 @@ class ActionModule(ActionBase):
 
         raise TimedOutException("timed out waiting for %s: %s" % (what_desc, error))
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         if task_vars is None:
             task_vars = dict()
 
@@ -72,10 +72,10 @@ class ActionModule(ActionBase):
             display.vvv("wait_for_connection: skipping for check_mode")
             return dict(skipped=True)
 
-        result = super(ActionModule, self).run(tmp, task_vars)
+        result = await super(ActionModule, self).run(tmp, task_vars)
         del tmp  # tmp no longer has any effect
 
-        def ping_module_test(connect_timeout):
+        async def ping_module_test(connect_timeout):
             """ Test ping module, if available """
             display.vvv("wait_for_connection: attempting ping module test")
             # re-run interpreter discovery if we ran it in the first iteration
@@ -87,7 +87,7 @@ class ActionModule(ActionBase):
             except AttributeError:
                 pass
 
-            ping_result = self._execute_module(module_name='ansible.legacy.ping', module_args=dict(), task_vars=task_vars)
+            ping_result = await self._execute_module(module_name='ansible.legacy.ping', module_args=dict(), task_vars=task_vars)
 
             # Test module output
             if ping_result['ping'] != 'pong':
@@ -114,6 +114,6 @@ class ActionModule(ActionBase):
         result['elapsed'] = elapsed.seconds
 
         # remove a temporary path we created
-        self._remove_tmp_path(self._connection._shell.tmpdir)
+        await self._remove_tmp_path(self._connection._shell.tmpdir)
 
         return result

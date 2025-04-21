@@ -17,8 +17,6 @@ rpm-build
 .idea
 #IntelliJ IDEA stuff..
 *.iml
-#VSCode stuff..
-.vscode/
 # Mac OS X stuff...
 .DS_Store
 # manpage build stuff...
@@ -124,3 +122,5 @@ test/units/.coverage.*
 /SYMLINK_CACHE.json
 changelogs/.plugin-cache.yaml
 .ansible-test-timeout.json
+inventory.yml
+playbook.yml

@@ -33,13 +33,13 @@ class ActionModule(ActionBase):
     # avoid collisions with collections search
     BUILTIN_SVC_MGR_MODULES = set(['openwrt_init', 'service', 'systemd', 'sysvinit'])
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         """ handler for package operations """
 
         self._supports_check_mode = True
         self._supports_async = True
 
-        result = super(ActionModule, self).run(tmp, task_vars)
+        result = await super(ActionModule, self).run(tmp, task_vars)
         del tmp  # tmp no longer has any effect
 
         module = self._task.args.get('use', 'auto').lower()
@@ -54,7 +54,7 @@ class ActionModule(ActionBase):
 
         try:
             if module == 'auto':
-                facts = self._execute_module(
+                facts = await self._execute_module(
                     module_name='ansible.legacy.setup',
                     module_args=dict(gather_subset='!all', filter='ansible_service_mgr'), task_vars=task_vars)
                 self._display.debug("Facts %s" % facts)
@@ -84,7 +84,7 @@ class ActionModule(ActionBase):
                     module = 'ansible.legacy.' + module
 
                 self._display.vvvv("Running %s" % module)
-                result.update(self._execute_module(module_name=module, module_args=new_module_args, task_vars=task_vars, wrap_async=self._task.async_val))
+                result.update(await self._execute_module(module_name=module, module_args=new_module_args, task_vars=task_vars, wrap_async=self._task.async_val))
             else:
                 raise AnsibleActionFail('Could not detect which service manager to use. Try gathering facts or setting the "use" option.')
 
@@ -92,6 +92,6 @@ class ActionModule(ActionBase):
             result.update(e.result)
         finally:
             if not self._task.async_val:
-                self._remove_tmp_path(self._connection._shell.tmpdir)
+                await self._remove_tmp_path(self._connection._shell.tmpdir)
 
         return result

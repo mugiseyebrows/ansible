@@ -24,7 +24,7 @@ import tempfile
 import threading
 import time
 import typing as t
-import multiprocessing.queues
+import asyncio
 
 from ansible import constants as C
 from ansible import context
@@ -46,7 +46,6 @@ from ansible.vars.hostvars import HostVars
 from ansible.vars.manager import VariableManager
 from ansible.utils.display import Display
 from ansible.utils.lock import lock_decorator
-from ansible.utils.multiprocessing import context as multiprocessing_context
 
 from dataclasses import dataclass
 
@@ -82,24 +81,23 @@ class PromptSend:
     complete_input: t.Iterable[bytes] = None
 
 
-class FinalQueue(multiprocessing.queues.SimpleQueue):
+class FinalQueue(asyncio.Queue):
     def __init__(self, *args, **kwargs):
-        kwargs['ctx'] = multiprocessing_context
         super().__init__(*args, **kwargs)
 
     def send_callback(self, method_name: str, task_result: TaskResult) -> None:
-        self.put(CallbackSend(method_name=method_name, thin_task_result=task_result.as_thin()))
+        self.put_nowait(CallbackSend(method_name=method_name, thin_task_result=task_result.as_thin()))
 
     def send_task_result(self, task_result: TaskResult) -> None:
-        self.put(task_result.as_thin())
+        self.put_nowait(task_result.as_thin())
 
     def send_display(self, method, *args, **kwargs):
-        self.put(
+        self.put_nowait(
             DisplaySend(method, *args, **kwargs),
         )
 
     def send_prompt(self, **kwargs):
-        self.put(
+        self.put_nowait(
             PromptSend(**kwargs),
         )
 
@@ -285,7 +283,7 @@ class TaskQueueManager:
 
         self._callbacks_loaded = True
 
-    def run(self, play):
+    async def run(self, play):
         """
         Iterates over the roles/tasks in a play, using the given (or default)
         strategy for queueing tasks. The default is the linear strategy, which
@@ -359,9 +357,9 @@ class TaskQueueManager:
 
         # and run the play using the strategy and cleanup on way out
         try:
-            play_return = strategy.run(iterator, play_context)
+            play_return = await strategy.run(iterator, play_context)
         finally:
-            strategy.cleanup()
+            await strategy.cleanup()
             self._cleanup_processes()
 
         # now re-save the hosts that failed from the iterator to our internal list
@@ -376,7 +374,6 @@ class TaskQueueManager:
     def cleanup(self):
         display.debug("RUNNING CLEANUP")
         self.terminate()
-        self._final_q.close()
         self._cleanup_processes()
         # We no longer flush on every write in ``Display.display``
         # just ensure we've flushed during cleanup

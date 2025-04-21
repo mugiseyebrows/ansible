@@ -1,3 +1,43 @@
+# About this fork
+
+I replaced multiprocessing with coroutines in order to run ansible on Windows without WSL (without MSYS2, Cygwin, etc). This fork can potentially run on macOS.
+
+What works:
+- playbook cli
+- ssh transport with key-based authentication
+- builtin modules
+
+What doesn't:
+- `become` feature is not implemented yet
+- password authentication is not implemented yet
+- installing galaxies is not implemented yet
+- some tests are broken
+
+# How to run on Windows
+
+1. clone source code
+```bash
+git clone --depth 1 https://github.com/mugiseyebrows/ansible.git
+```
+
+2. install requirements (use `venv` if you wish)
+```bash
+cd ansible
+pip install -r requirements.txt
+```
+
+3. setup env (add ansible/lib to PYTHONPATH)
+```bash
+hacking\env-setup
+```
+
+4. run playbook
+```bash
+python lib/ansible/cli/playbook.py -i path/to/inventory.yml path/to/playbook.yml
+```
+
+# Original Readme:
+
 [![PyPI version](https://img.shields.io/pypi/v/ansible-core.svg)](https://pypi.org/project/ansible-core)
 [![Docs badge](https://img.shields.io/badge/docs-latest-brightgreen.svg)](https://docs.ansible.com/ansible/latest/)
 [![Chat badge](https://img.shields.io/badge/chat-IRC-brightgreen.svg)](https://docs.ansible.com/ansible/devel/community/communication.html)

@@ -8,7 +8,7 @@ from ansible.plugins.action import ActionBase
 
 class ActionModule(ActionBase):
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         del tmp  # tmp no longer has any effect
 
         try:
@@ -22,6 +22,6 @@ class ActionModule(ActionBase):
                                                                  loader=self._loader,
                                                                  templar=self._templar,
                                                                  shared_loader_obj=self._shared_loader_obj)
-        result = shell_action.run(task_vars=task_vars)
+        result = await shell_action.run(task_vars=task_vars)
         result.pop('failed', None)
         return result

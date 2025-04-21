@@ -15,6 +15,7 @@ import shlex
 import stat
 import tempfile
 import typing as t
+import sys
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
@@ -105,7 +106,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
         self._display = display
 
     @abstractmethod
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         """ Action Plugins should implement this method to perform their
         tasks.  Everything else in this base class is a helper method for the
         action plugin to do that.
@@ -144,7 +145,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
                 raise AnsibleActionFail('Invalid options for %s: %s' % (self._task.action, ','.join(list(bad_opts))))
 
         if self._connection._shell.tmpdir is None and self._early_needs_tmp_path():
-            self._make_tmp_path()
+            await self._make_tmp_path()
 
         return result
 
@@ -198,7 +199,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
 
         return validation_result, new_module_args
 
-    def cleanup(self, force=False):
+    async def cleanup(self, force=False):
         """Method to perform a clean up at the end of an action plugin execution
 
         By default this is designed to clean up the shell tmpdir, and is toggled based on whether
@@ -208,7 +209,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
         via super
         """
         if force or not self._task.async_val:
-            self._remove_tmp_path(self._connection._shell.tmpdir)
+            await self._remove_tmp_path(self._connection._shell.tmpdir)
 
     @classmethod
     @contextlib.contextmanager
@@ -250,14 +251,14 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
     def get_shell_option(self, option, default=None):
         return self.get_plugin_option(self._connection._shell, option, default=default)
 
-    def _remote_file_exists(self, path):
+    async def _remote_file_exists(self, path):
         cmd = self._connection._shell.exists(path)
-        result = self._low_level_execute_command(cmd=cmd, sudoable=True)
+        result = await self._low_level_execute_command(cmd=cmd, sudoable=True)
         if result['rc'] == 0:
             return True
         return False
 
-    def _configure_module(self, module_name, module_args, task_vars) -> tuple[_BuiltModule, str]:
+    async def _configure_module(self, module_name, module_args, task_vars) -> tuple[_BuiltModule, str]:
         """
         Handles the loading and templating of the module code through the
         modify_module() function.
@@ -344,7 +345,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
 
                 break
             except InterpreterDiscoveryRequiredError as idre:
-                self._discovered_interpreter = discover_interpreter(action=self, interpreter_name=idre.interpreter_name,
+                self._discovered_interpreter = await discover_interpreter(action=self, interpreter_name=idre.interpreter_name,
                                                                     discovery_mode=idre.discovery_mode, task_vars=use_vars)
 
                 # update the local task_vars with the discovered interpreter (which might be None);
@@ -467,7 +468,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
         become_user = self.get_become_option('become_user')
         return bool(become_user and become_user not in admin_users + [remote_user])
 
-    def _make_tmp_path(self, remote_user=None):
+    async def _make_tmp_path(self, remote_user=None):
         """
         Create and return a temporary path on a remote box.
         """
@@ -480,12 +481,12 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
         else:
             # NOTE: shell plugins should populate this setting anyways, but they dont do remote expansion, which
             # we need for 'non posix' systems like cloud-init and solaris
-            tmpdir = self._remote_expand_user(self.get_shell_option('remote_tmp', default='~/.ansible/tmp'), sudoable=False)
+            tmpdir = await self._remote_expand_user(self.get_shell_option('remote_tmp', default='~/.ansible/tmp'), sudoable=False)
 
         become_unprivileged = self._is_become_unprivileged()
         basefile = self._connection._shell._generate_temp_dir_name()
         cmd = self._connection._shell.mkdtemp(basefile=basefile, system=become_unprivileged, tmpdir=tmpdir)
-        result = self._low_level_execute_command(cmd, sudoable=False)
+        result = await self._low_level_execute_command(cmd, sudoable=False)
 
         # error handling on this seems a little aggressive?
         if result['rc'] != 0:
@@ -534,7 +535,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
         """Determine if temporary path should be deleted or kept by user request/config"""
         return tmp_path and self._cleanup_remote_tmp and not C.DEFAULT_KEEP_REMOTE_FILES and "-tmp-" in tmp_path
 
-    def _remove_tmp_path(self, tmp_path, force=False):
+    async def _remove_tmp_path(self, tmp_path, force=False):
         """Remove a temporary path we created. """
 
         if tmp_path is None and self._connection._shell.tmpdir:
@@ -544,7 +545,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
             cmd = self._connection._shell.remove(tmp_path, recurse=True)
             # If we have gotten here we have a working connection configuration.
             # If the connection breaks we could leave tmp directories out on the remote system.
-            tmp_rm_res = self._low_level_execute_command(cmd, sudoable=False)
+            tmp_rm_res = await self._low_level_execute_command(cmd, sudoable=False)
 
             if tmp_rm_res.get('rc', 0) != 0:
                 display.warning('Error deleting remote temporary files (rc: %s, stderr: %s})'
@@ -552,7 +553,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
             else:
                 self._connection._shell.tmpdir = None
 
-    def _transfer_file(self, local_path, remote_path):
+    async def _transfer_file(self, local_path, remote_path):
         """
         Copy a file from the controller to a remote path
 
@@ -567,10 +568,10 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
               need to then remove filesystem acls on the file once it has been copied into place by
               the module.  See how the copy module implements this for help.
         """
-        self._connection.put_file(local_path, remote_path)
+        await self._connection.put_file(local_path, remote_path)
         return remote_path
 
-    def _transfer_data(self, remote_path: str | bytes, data: str | bytes) -> str | bytes:
+    async def _transfer_data(self, remote_path: str | bytes, data: str | bytes) -> str | bytes:
         """
         Copies the module data out to the temporary module path.
         """
@@ -591,13 +592,13 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
         afo.close()
 
         try:
-            self._transfer_file(afile, remote_path)
+            await self._transfer_file(afile, remote_path)
         finally:
             os.unlink(afile)
 
         return remote_path
 
-    def _fixup_perms2(self, remote_paths, remote_user=None, execute=True):
+    async def _fixup_perms2(self, remote_paths, remote_user=None, execute=True):
         """
         We need the files we upload to be readable (and sometimes executable)
         by the user being sudo'd to but we want to limit other people's access
@@ -651,7 +652,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
             if execute:
                 # Can't depend on the file being transferred with execute permissions.
                 # Only need user perms because no become was used here
-                res = self._remote_chmod(remote_paths, 'u+x')
+                res = await self._remote_chmod(remote_paths, 'u+x')
                 if res['rc'] != 0:
                     raise AnsibleError(
                         'Failed to set execute bit on remote files '
@@ -686,7 +687,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
             posix_acl_mode = 'A+user:{0}:r:allow'.format(become_user)
 
         # Step 3a: Are we able to use setfacl to add user ACLs to the file?
-        res = self._remote_set_user_facl(
+        res = await self._remote_set_user_facl(
             remote_paths,
             become_user,
             setfacl_mode)
@@ -698,7 +699,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
         # because some of the methods below might work but not let us set +x
         # as part of them.
         if execute:
-            res = self._remote_chmod(remote_paths, 'u+x')
+            res = await self._remote_chmod(remote_paths, 'u+x')
             if res['rc'] != 0:
                 raise AnsibleError(
                     'Failed to set file mode or acl on remote temporary files '
@@ -707,7 +708,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
                         to_native(res['stderr'])))
 
         # Step 3c: File system ACLs failed above; try falling back to chown.
-        res = self._remote_chown(remote_paths, become_user)
+        res = await self._remote_chown(remote_paths, become_user)
         if res['rc'] == 0:
             return remote_paths
 
@@ -725,7 +726,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
         # pass that argument as the first element of remote_paths. So we end
         # up running `chmod +a [that argument] [file 1] [file 2] ...`
         try:
-            res = self._remote_chmod([chmod_acl_mode] + list(remote_paths), '+a')
+            res = await self._remote_chmod([chmod_acl_mode] + list(remote_paths), '+a')
         except AnsibleAuthenticationFailure as e:
             # Solaris-based chmod will return 5 when it sees an invalid mode,
             # and +a is invalid there. Because it returns 5, which is the same
@@ -745,7 +746,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
         # using either setfacl or chmod, and compatibility depends on filesystem.
         # It should be possible to debug this branch by installing OpenIndiana
         # (use ZFS) and going unpriv -> unpriv.
-        res = self._remote_chmod(remote_paths, posix_acl_mode)
+        res = await self._remote_chmod(remote_paths, posix_acl_mode)
         if res['rc'] == 0:
             return remote_paths
 
@@ -786,7 +787,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
                     group_mode = 'g+rwx'
                 else:
                     group_mode = 'g+rw'
-                res = self._remote_chmod(remote_paths, group_mode)
+                res = await self._remote_chmod(remote_paths, group_mode)
                 if res['rc'] == 0:
                     return remote_paths
 
@@ -799,7 +800,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
                 'needs to create when becoming an unprivileged user. This may '
                 'be insecure. For information on securing this, see %s'
                 '#risks-of-becoming-an-unprivileged-user' % become_link)
-            res = self._remote_chmod(remote_paths, 'a+%s' % chmod_mode)
+            res = await self._remote_chmod(remote_paths, 'a+%s' % chmod_mode)
             if res['rc'] == 0:
                 return remote_paths
             raise AnsibleError(
@@ -816,39 +817,39 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
                 res['rc'],
                 to_native(res['stderr']), become_link))
 
-    def _remote_chmod(self, paths, mode, sudoable=False):
+    async def _remote_chmod(self, paths, mode, sudoable=False):
         """
         Issue a remote chmod command
         """
         cmd = self._connection._shell.chmod(paths, mode)
-        res = self._low_level_execute_command(cmd, sudoable=sudoable)
+        res = await self._low_level_execute_command(cmd, sudoable=sudoable)
         return res
 
-    def _remote_chown(self, paths, user, sudoable=False):
+    async def _remote_chown(self, paths, user, sudoable=False):
         """
         Issue a remote chown command
         """
         cmd = self._connection._shell.chown(paths, user)
-        res = self._low_level_execute_command(cmd, sudoable=sudoable)
+        res = await self._low_level_execute_command(cmd, sudoable=sudoable)
         return res
 
-    def _remote_chgrp(self, paths, group, sudoable=False):
+    async def _remote_chgrp(self, paths, group, sudoable=False):
         """
         Issue a remote chgrp command
         """
         cmd = self._connection._shell.chgrp(paths, group)
-        res = self._low_level_execute_command(cmd, sudoable=sudoable)
+        res = await self._low_level_execute_command(cmd, sudoable=sudoable)
         return res
 
-    def _remote_set_user_facl(self, paths, user, mode, sudoable=False):
+    async def _remote_set_user_facl(self, paths, user, mode, sudoable=False):
         """
         Issue a remote call to setfacl
         """
         cmd = self._connection._shell.set_user_facl(paths, user, mode)
-        res = self._low_level_execute_command(cmd, sudoable=sudoable)
+        res = await self._low_level_execute_command(cmd, sudoable=sudoable)
         return res
 
-    def _execute_remote_stat(self, path, all_vars, follow, tmp=None, checksum=True):
+    async def _execute_remote_stat(self, path, all_vars, follow, tmp=None, checksum=True):
         """
         Get information from remote file.
         """
@@ -867,7 +868,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
         )
         # Unknown opts are ignored as module_args could be specific for the
         # module that is being executed.
-        mystat = self._execute_module(module_name='ansible.legacy.stat', module_args=module_args, task_vars=all_vars,
+        mystat = await self._execute_module(module_name='ansible.legacy.stat', module_args=module_args, task_vars=all_vars,
                                       wrap_async=False, ignore_unknown_opts=True)
 
         if mystat.get('failed'):
@@ -890,7 +891,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
 
         return mystat['stat']
 
-    def _remote_expand_user(self, path, sudoable=True, pathsep=None):
+    async def _remote_expand_user(self, path, sudoable=True, pathsep=None):
         """ takes a remote path and performs tilde/$HOME expansion on the remote host """
 
         # We only expand ~/path and ~username/path
@@ -917,7 +918,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
 
         # use shell to construct appropriate command and execute
         cmd = self._connection._shell.expand_user(expand_path)
-        data = self._low_level_execute_command(cmd, sudoable=False)
+        data = await self._low_level_execute_command(cmd, sudoable=False)
 
         try:
             initial_fragment = data['stdout'].strip().splitlines()[-1]
@@ -928,7 +929,8 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
             # Something went wrong trying to expand the path remotely. Try using pwd, if not, return
             # the original string
             cmd = self._connection._shell.pwd()
-            pwd = self._low_level_execute_command(cmd, sudoable=False).get('stdout', '').strip()
+            data = await self._low_level_execute_command(cmd, sudoable=False)
+            pwd = data.get('stdout', '').strip()
             if pwd:
                 expanded = pwd
             else:
@@ -1015,7 +1017,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
 
         module_args['_ansible_tracebacks_for'] = _traceback.traceback_for()
 
-    def _execute_module(self, module_name=None, module_args=None, tmp=None, task_vars=None, persist_files=False, delete_remote_tmp=None, wrap_async=False,
+    async def _execute_module(self, module_name=None, module_args=None, tmp=None, task_vars=None, persist_files=False, delete_remote_tmp=None, wrap_async=False,
                         ignore_unknown_opts: bool = False):
         """
         Transfer and run a module along with its arguments.
@@ -1040,7 +1042,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
         # calling self._update_module_args() so the module wrapper has the
         # correct remote_tmp value set
         if not self._is_pipelining_enabled("new", wrap_async) and tmpdir is None:
-            self._make_tmp_path()
+            await self._make_tmp_path()
             tmpdir = self._connection._shell.tmpdir
 
         if task_vars is None:
@@ -1061,7 +1063,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
             self._task.environment.append({"ANSIBLE_ASYNC_DIR": async_dir})
 
         # FUTURE: refactor this along with module build process to better encapsulate "smart wrapper" functionality
-        module_bits, module_path = self._configure_module(module_name=module_name, module_args=module_args, task_vars=task_vars)
+        module_bits, module_path = await self._configure_module(module_name=module_name, module_args=module_args, task_vars=task_vars)
         (module_style, shebang, module_data) = (module_bits.module_style, module_bits.shebang, module_bits.b_module_data)
         display.vvv("Using module file %s" % module_path)
         if not shebang and module_style != 'binary':
@@ -1073,7 +1075,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
         if not self._is_pipelining_enabled(module_style, wrap_async):
             # we might need remote tmp dir
             if tmpdir is None:
-                self._make_tmp_path()
+                await self._make_tmp_path()
                 tmpdir = self._connection._shell.tmpdir
 
             remote_module_filename = self._connection._shell.get_remote_filename(module_path)
@@ -1087,19 +1089,19 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
         if remote_module_path or module_style != 'new':
             display.debug("transferring module to remote %s" % remote_module_path)
             if module_style == 'binary':
-                self._transfer_file(module_path, remote_module_path)
+                await self._transfer_file(module_path, remote_module_path)
             else:
-                self._transfer_data(remote_module_path, module_data)
+                await self._transfer_data(remote_module_path, module_data)
             if module_style == 'old':
                 # we need to dump the module args to a k=v string in a file on
                 # the remote system, which can be read and parsed by the module
                 args_data = ""
                 for k, v in module_args.items():
                     args_data += '%s=%s ' % (k, shlex.quote(text_type(v)))
-                self._transfer_data(args_file_path, args_data)
+                await self._transfer_data(args_file_path, args_data)
             elif module_style in ('non_native_want_json', 'binary'):
                 profile_encoder = get_module_encoder(module_bits.serialization_profile, Direction.CONTROLLER_TO_MODULE)
-                self._transfer_data(args_file_path, json.dumps(module_args, cls=profile_encoder))
+                await self._transfer_data(args_file_path, json.dumps(module_args, cls=profile_encoder))
             display.debug("done transferring module to remote")
 
         environment_string = self._compute_environment_string()
@@ -1122,11 +1124,11 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
 
         if wrap_async and not self._connection.always_pipeline_modules:
             # configure, upload, and chmod the async_wrapper module
-            (async_module_bits, async_module_path) = self._configure_module(module_name='ansible.legacy.async_wrapper', module_args=dict(), task_vars=task_vars)
+            (async_module_bits, async_module_path) = await self._configure_module(module_name='ansible.legacy.async_wrapper', module_args=dict(), task_vars=task_vars)
             (async_module_style, shebang, async_module_data) = (async_module_bits.module_style, async_module_bits.shebang, async_module_bits.b_module_data)
             async_module_remote_filename = self._connection._shell.get_remote_filename(async_module_path)
             remote_async_module_path = self._connection._shell.join_path(tmpdir, async_module_remote_filename)
-            self._transfer_data(remote_async_module_path, async_module_data)
+            await self._transfer_data(remote_async_module_path, async_module_data)
             remote_files.append(remote_async_module_path)
 
             async_limit = self._task.async_val
@@ -1166,10 +1168,10 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
         if remote_files:
             # remove none/empty
             remote_files = [x for x in remote_files if x]
-            self._fixup_perms2(remote_files, self._get_remote_user())
+            await self._fixup_perms2(remote_files, self._get_remote_user())
 
         # actually execute
-        res = self._low_level_execute_command(cmd, sudoable=sudoable, in_data=in_data)
+        res = await self._low_level_execute_command(cmd, sudoable=sudoable, in_data=in_data)
 
         # parse the main result
         data = self._parse_returned_data(res, module_bits.serialization_profile)
@@ -1276,7 +1278,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
         return data
 
     # FIXME: move to connection base
-    def _low_level_execute_command(self, cmd, sudoable=True, in_data=None, executable=None, encoding_errors='surrogate_then_replace', chdir=None):
+    async def _low_level_execute_command(self, cmd, sudoable=True, in_data=None, executable=None, encoding_errors='surrogate_then_replace', chdir=None):
         """
         This is the function which executes the low level shell command, which
         may be commands to create/remove directories for temporary files, or to
@@ -1329,7 +1331,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
         if self._connection.transport == 'local':
             self._connection.cwd = to_bytes(self._loader.get_basedir(), errors='surrogate_or_strict')
 
-        rc, stdout, stderr = self._connection.exec_command(cmd, in_data=in_data, sudoable=sudoable)
+        rc, stdout, stderr = await self._connection.exec_command(cmd, in_data=in_data, sudoable=sudoable)
 
         # stdout and stderr may be either a file-like or a bytes object.
         # Convert either one to a text type
@@ -1356,7 +1358,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
         display.debug(u"_low_level_execute_command() done: rc=%d, stdout=%s, stderr=%s" % (rc, out, err))
         return dict(rc=rc, stdout=out, stdout_lines=out.splitlines(), stderr=err, stderr_lines=err.splitlines())
 
-    def _get_diff_data(self, destination, source, task_vars, content=None, source_file=True):
+    async def _get_diff_data(self, destination, source, task_vars, content=None, source_file=True):
 
         # Note: Since we do not diff the source and destination before we transform from bytes into
         # text the diff between source and destination may not be accurate.  To fix this, we'd need
@@ -1369,7 +1371,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
 
         diff = {}
         display.debug("Going to peek to see if file has changed permissions")
-        peek_result = self._execute_module(
+        peek_result = await self._execute_module(
             module_name='ansible.legacy.file', module_args=dict(path=destination, _diff_peek=True),
             task_vars=task_vars, persist_files=True)
 
@@ -1387,7 +1389,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
                 diff['dst_larger'] = C.MAX_FILE_SIZE_FOR_DIFF
             else:
                 display.debug(u"Slurping the file %s" % destination)
-                dest_result = self._execute_module(
+                dest_result = await self._execute_module(
                     module_name='ansible.legacy.slurp', module_args=dict(path=destination),
                     task_vars=task_vars, persist_files=True)
                 if 'content' in dest_result:

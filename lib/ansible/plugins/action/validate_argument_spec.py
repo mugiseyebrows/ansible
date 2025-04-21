@@ -34,7 +34,7 @@ class ActionModule(ActionBase):
         args = self._templar.template(args)
         return args
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         """
         Validate an argument specification against a provided set of data.
 
@@ -52,7 +52,7 @@ class ActionModule(ActionBase):
         if task_vars is None:
             task_vars = dict()
 
-        result = super(ActionModule, self).run(tmp, task_vars)
+        result = await super(ActionModule, self).run(tmp, task_vars)
         del tmp  # tmp no longer has any effect
 
         # This action can be called from anywhere, so pass in some info about what it is

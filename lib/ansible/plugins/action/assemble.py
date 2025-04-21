@@ -79,11 +79,11 @@ class ActionModule(ActionBase):
         tmp.close()
         return temp_path
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
 
         self._supports_check_mode = False
 
-        result = super(ActionModule, self).run(tmp, task_vars)
+        result = await super(ActionModule, self).run(tmp, task_vars)
         del tmp  # tmp no longer has any effect
 
         if task_vars is None:
@@ -104,7 +104,7 @@ class ActionModule(ActionBase):
 
             if boolean(remote_src, strict=False):
                 # call assemble via ansible.legacy to allow library/ overrides of the module without collection search
-                result.update(self._execute_module(module_name='ansible.legacy.assemble', task_vars=task_vars))
+                result.update(await self._execute_module(module_name='ansible.legacy.assemble', task_vars=task_vars))
                 raise _AnsibleActionDone()
             else:
                 try:
@@ -123,8 +123,8 @@ class ActionModule(ActionBase):
             path = self._assemble_from_fragments(src, delimiter, _re, ignore_hidden, decrypt)
 
             path_checksum = checksum_s(path)
-            dest = self._remote_expand_user(dest)
-            dest_stat = self._execute_remote_stat(dest, all_vars=task_vars, follow=follow)
+            dest = await self._remote_expand_user(dest)
+            dest_stat = await self._execute_remote_stat(dest, all_vars=task_vars, follow=follow)
 
             diff = {}
 
@@ -140,26 +140,26 @@ class ActionModule(ActionBase):
             if path_checksum != dest_stat['checksum']:
 
                 if self._task.diff:
-                    diff = self._get_diff_data(dest, path, task_vars)
+                    diff = await self._get_diff_data(dest, path, task_vars)
 
                 remote_path = self._connection._shell.join_path(self._connection._shell.tmpdir, 'src')
-                xfered = self._transfer_file(path, remote_path)
+                xfered = await self._transfer_file(path, remote_path)
 
                 # fix file permissions when the copy is done as a different user
-                self._fixup_perms2((self._connection._shell.tmpdir, remote_path))
+                await self._fixup_perms2((self._connection._shell.tmpdir, remote_path))
 
                 new_module_args.update(dict(src=xfered,))
 
-                res = self._execute_module(module_name='ansible.legacy.copy', module_args=new_module_args, task_vars=task_vars)
+                res = await self._execute_module(module_name='ansible.legacy.copy', module_args=new_module_args, task_vars=task_vars)
                 if diff:
                     res['diff'] = diff
                 result.update(res)
             else:
-                result.update(self._execute_module(module_name='ansible.legacy.file', module_args=new_module_args, task_vars=task_vars))
+                result.update(await self._execute_module(module_name='ansible.legacy.file', module_args=new_module_args, task_vars=task_vars))
 
         except AnsibleAction as e:
             result.update(e.result)
         finally:
-            self._remove_tmp_path(self._connection._shell.tmpdir)
+            await self._remove_tmp_path(self._connection._shell.tmpdir)
 
         return result

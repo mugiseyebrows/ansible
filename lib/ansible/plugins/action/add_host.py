@@ -38,9 +38,9 @@ class ActionModule(ActionBase):
     _requires_connection = False
     _supports_check_mode = True
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
 
-        result = super(ActionModule, self).run(tmp, task_vars)
+        result = await super(ActionModule, self).run(tmp, task_vars)
         del tmp  # tmp no longer has any effect
 
         args = self._task.args

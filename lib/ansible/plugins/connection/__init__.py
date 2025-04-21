@@ -5,7 +5,10 @@
 from __future__ import annotations
 
 import collections.abc as c
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    pass
 import io
 import os
 import shlex
@@ -140,7 +143,7 @@ class ConnectionBase(AnsiblePlugin):
 
     @ensure_connect
     @abstractmethod
-    def exec_command(self, cmd: str, in_data: bytes | None = None, sudoable: bool = True) -> tuple[int, bytes, bytes]:
+    async def exec_command(self, cmd: str, in_data: bytes | None = None, sudoable: bool = True) -> tuple[int, bytes, bytes]:
         """Run a command on the remote host.
 
         :arg cmd: byte string containing the command
@@ -208,13 +211,13 @@ class ConnectionBase(AnsiblePlugin):
 
     @ensure_connect
     @abstractmethod
-    def put_file(self, in_path: str, out_path: str) -> None:
+    async def put_file(self, in_path: str, out_path: str) -> None:
         """Transfer a file from local to remote"""
         pass
 
     @ensure_connect
     @abstractmethod
-    def fetch_file(self, in_path: str, out_path: str) -> None:
+    async def fetch_file(self, in_path: str, out_path: str) -> None:
         """Fetch a file from remote to local; callers are expected to have pre-created the directory chain for out_path"""
         pass
 
@@ -364,8 +367,8 @@ class NetworkConnectionBase(ConnectionBase):
                         return method
             raise AttributeError("'%s' object has no attribute '%s'" % (self.__class__.__name__, name))
 
-    def exec_command(self, cmd: str, in_data: bytes | None = None, sudoable: bool = True) -> tuple[int, bytes, bytes]:
-        return self._local.exec_command(cmd, in_data, sudoable)
+    async def exec_command(self, cmd: str, in_data: bytes | None = None, sudoable: bool = True) -> tuple[int, bytes, bytes]:
+        return await self._local.exec_command(cmd, in_data, sudoable)
 
     def queue_message(self, level: str, message: str) -> None:
         """
@@ -381,13 +384,13 @@ class NetworkConnectionBase(ConnectionBase):
         messages, self._messages = self._messages, []
         return messages
 
-    def put_file(self, in_path: str, out_path: str) -> None:
+    async def put_file(self, in_path: str, out_path: str) -> None:
         """Transfer a file from local to remote"""
-        return self._local.put_file(in_path, out_path)
+        return await self._local.put_file(in_path, out_path)
 
-    def fetch_file(self, in_path: str, out_path: str) -> None:
+    async def fetch_file(self, in_path: str, out_path: str) -> None:
         """Fetch a file from remote to local"""
-        return self._local.fetch_file(in_path, out_path)
+        return await self._local.fetch_file(in_path, out_path)
 
     def reset(self) -> None:
         """

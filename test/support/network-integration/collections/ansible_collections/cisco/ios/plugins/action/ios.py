@@ -37,7 +37,7 @@ display = Display()
 
 
 class ActionModule(ActionNetworkModule):
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         del tmp  # tmp no longer has any effect
 
         module_name = self._task.action.split(".")[-1]
@@ -123,7 +123,7 @@ class ActionModule(ActionNetworkModule):
                 % self._play_context.connection,
             }
 
-        result = super(ActionModule, self).run(task_vars=task_vars)
+        result = await super(ActionModule, self).run(task_vars=task_vars)
         if warnings:
             if "warnings" in result:
                 result["warnings"].extend(warnings)

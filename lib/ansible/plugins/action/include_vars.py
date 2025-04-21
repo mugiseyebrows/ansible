@@ -71,7 +71,7 @@ class ActionModule(ActionBase):
         if not isinstance(self.valid_extensions, list):
             raise AnsibleError('Invalid type for "extensions" option, it must be a list')
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         """ Load yml files recursively from a directory.
         """
         del tmp  # tmp no longer has any effect

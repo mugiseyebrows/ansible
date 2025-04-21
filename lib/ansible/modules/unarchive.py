@@ -243,10 +243,16 @@ import binascii
 import codecs
 import ctypes
 import fnmatch
-import grp
+try:
+    import grp
+except ImportError:
+    pass
 import os
 import platform
-import pwd
+try:
+    import pwd
+except ImportError:
+    pass
 import re
 import stat
 import time

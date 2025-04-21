@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import contextlib
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    pass
 import typing as t
 
 
@@ -14,8 +17,11 @@ def named_mutex(path: str) -> t.Iterator[None]:
     """
     with open(path, 'a') as file:
         fcntl.flock(file, fcntl.LOCK_EX)
-
         try:
             yield
         finally:
             fcntl.flock(file, fcntl.LOCK_UN)
+
+@contextlib.contextmanager
+def no_mutex(path: str) -> t.Iterator[None]:
+    yield

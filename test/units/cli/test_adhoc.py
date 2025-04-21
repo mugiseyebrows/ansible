@@ -38,21 +38,21 @@ def test_simple_command():
     assert ret == 0
 
 
-def test_no_argument():
+async def test_no_argument():
     """ Test no argument command"""
     adhoc_cli = AdHocCLI(['/bin/ansible', '-m', 'command', 'localhost'])
     adhoc_cli.parse()
     with pytest.raises(AnsibleOptionsError) as exec_info:
-        adhoc_cli.run()
+        await adhoc_cli.run()
     assert 'No argument passed to command module' == str(exec_info.value)
 
 
-def test_did_you_mean_playbook():
+async def test_did_you_mean_playbook():
     """ Test adhoc with yml file as argument parameter"""
     adhoc_cli = AdHocCLI(['/bin/ansible', '-m', 'command', 'localhost.yml'])
     adhoc_cli.parse()
     with pytest.raises(AnsibleOptionsError) as exec_info:
-        adhoc_cli.run()
+        await adhoc_cli.run()
     assert 'No argument passed to command module (did you mean to run ansible-playbook?)' == str(exec_info.value)
 
 
@@ -74,13 +74,13 @@ def test_play_ds_with_include_role():
     assert ret['gather_facts'] == 'no'
 
 
-def test_run_import_playbook():
+async def test_run_import_playbook():
     """ Test import_playbook which is not allowed with ad-hoc command"""
     import_playbook = 'import_playbook'
     adhoc_cli = AdHocCLI(args=['/bin/ansible', '-m', import_playbook, 'localhost'])
     adhoc_cli.parse()
     with pytest.raises(AnsibleOptionsError) as exec_info:
-        adhoc_cli.run()
+        await adhoc_cli.run()
     assert context.CLIARGS['module_name'] == import_playbook
     assert "'%s' is not a valid action for ad-hoc commands" % import_playbook == str(exec_info.value)
 
@@ -92,10 +92,10 @@ def test_run_no_extra_vars():
     assert exec_info.value.code == 2
 
 
-def test_ansible_version(capsys):
+async def test_ansible_version(capsys):
     adhoc_cli = AdHocCLI(args=['/bin/ansible', '--version'])
     with pytest.raises(SystemExit):
-        adhoc_cli.run()
+        await adhoc_cli.run()
     version = capsys.readouterr()
     version_lines = version.out.splitlines()
 

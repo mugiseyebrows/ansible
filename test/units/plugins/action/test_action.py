@@ -86,7 +86,7 @@ def _action_base():
 class DerivedActionBase(ActionBase):
     TRANSFERS_FILES = False
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         # We're not testing the plugin run() method, just the helper
         # methods ActionBase defines
         return super(DerivedActionBase, self).run(tmp=tmp, task_vars=task_vars)
@@ -114,7 +114,7 @@ class TestActionBase(unittest.TestCase):
         self.assertEqual(results, {})
 
     @pytest.mark.usefixtures('collection_loader')
-    def test_action_base__configure_module(self):
+    async def test_action_base__configure_module(self):
         # Pre-populate the ansible.builtin collection
         # so reading the ansible_builtin_runtime.yml happens
         # before the mock_open below
@@ -178,7 +178,7 @@ class TestActionBase(unittest.TestCase):
             with patch.object(os, 'rename'):
                 mock_task.args = dict(a=1, foo='fö〩')
                 mock_connection.module_implementation_preferences = ('',)
-                built_module, path = action_base._configure_module(mock_task.action, mock_task.args,
+                built_module, path = await action_base._configure_module(mock_task.action, mock_task.args,
                                                                    task_vars=dict(ansible_python_interpreter='/usr/bin/python',
                                                                                   ansible_playbook_python='/usr/bin/python'))
                 self.assertEqual(built_module.module_style, "new")
@@ -558,7 +558,7 @@ class TestActionBase(unittest.TestCase):
             None)
         assertThrowRegex('on the temporary files Ansible needs to create')
 
-    def test_action_base__remove_tmp_path(self):
+    async def test_action_base__remove_tmp_path(self):
         # create our fake task
         mock_task = MagicMock()
 
@@ -582,13 +582,13 @@ class TestActionBase(unittest.TestCase):
         action_base._low_level_execute_command = MagicMock()
         # these don't really return anything or raise errors, so
         # we're pretty much calling these for coverage right now
-        action_base._remove_tmp_path('/bad/path/dont/remove')
-        action_base._remove_tmp_path('/good/path/to/ansible-tmp-thing')
+        await action_base._remove_tmp_path('/bad/path/dont/remove')
+        await action_base._remove_tmp_path('/good/path/to/ansible-tmp-thing')
 
     @patch('os.unlink')
     @patch('os.fdopen')
     @patch('tempfile.mkstemp')
-    def test_action_base__transfer_data(self, mock_mkstemp, mock_fdopen, mock_unlink):
+    async def test_action_base__transfer_data(self, mock_mkstemp, mock_fdopen, mock_unlink):
         # create our fake task
         mock_task = MagicMock()
 
@@ -630,7 +630,7 @@ class TestActionBase(unittest.TestCase):
         self.assertRaises(AnsibleError, action_base._transfer_data, '/path/to/remote/file', '')
 
         with pytest.raises(TypeError):
-            action_base._transfer_data('/path/to/remote/file', dict())
+            await action_base._transfer_data('/path/to/remote/file', dict())
 
     def test_action_base__execute_remote_stat(self):
         # create our fake task
@@ -775,7 +775,7 @@ class TestActionBase(unittest.TestCase):
         action_base._supports_check_mode = False
         self.assertRaises(AnsibleError, action_base._execute_module)
 
-    def test_action_base_sudo_only_if_user_differs(self):
+    async def test_action_base_sudo_only_if_user_differs(self):
         fake_loader = MagicMock()
         fake_loader.get_basedir.return_value = os.getcwd()
         play_context = PlayContext()
@@ -792,28 +792,28 @@ class TestActionBase(unittest.TestCase):
         action_base._connection.transport = ''
         become.build_become_command.return_value = 'foo'
 
-        action_base._low_level_execute_command('ECHO', sudoable=True)
+        await action_base._low_level_execute_command('ECHO', sudoable=True)
         become.build_become_command.assert_not_called()
 
         action_base._get_remote_user.return_value = 'apo'
-        action_base._low_level_execute_command('ECHO', sudoable=True, executable='/bin/csh')
+        await action_base._low_level_execute_command('ECHO', sudoable=True, executable='/bin/csh')
         become.build_become_command.assert_called_once_with("ECHO", shell)
 
         become.build_become_command.reset_mock()
 
         with patch.object(C, 'BECOME_ALLOW_SAME_USER', new=True):
             action_base._get_remote_user.return_value = 'root'
-            action_base._low_level_execute_command('ECHO SAME', sudoable=True)
+            await action_base._low_level_execute_command('ECHO SAME', sudoable=True)
             become.build_become_command.assert_called_once_with("ECHO SAME", shell)
 
-    def test__remote_expand_user_relative_pathing(self):
+    async def test__remote_expand_user_relative_pathing(self):
         action_base = _action_base()
         action_base._play_context.remote_addr = 'bar'
         action_base._connection.get_option.return_value = 'bar'
         action_base._low_level_execute_command = MagicMock(return_value={'stdout': b'../home/user'})
         action_base._connection._shell.join_path.return_value = '../home/user/foo'
         with self.assertRaises(AnsibleError) as cm:
-            action_base._remote_expand_user('~/foo')
+            await action_base._remote_expand_user('~/foo')
         self.assertEqual(
             cm.exception.message,
             "'bar' returned an invalid relative home directory path containing '..'"

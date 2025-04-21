@@ -15,7 +15,7 @@ import os
 import os.path
 import re
 import textwrap
-
+import asyncio
 import yaml
 
 import ansible.plugins.loader as plugin_loader
@@ -889,9 +889,9 @@ class DocCLI(CLI, RoleMixin):
 
         return loader
 
-    def run(self):
+    async def run(self):
 
-        super(DocCLI, self).run()
+        await super(DocCLI, self).run()
 
         basedir = context.CLIARGS['basedir']
         plugin_type = context.CLIARGS['type'].lower()
@@ -1611,9 +1611,11 @@ def _do_lookup_snippet(doc):
     return text
 
 
-def main(args=None):
-    DocCLI.cli_executor(args)
+async def async_main(args=None):
+    await DocCLI.cli_executor(args)
 
+def main(args=None):
+    asyncio.run(async_main(args))
 
 if __name__ == '__main__':
     main()

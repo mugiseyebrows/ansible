@@ -33,7 +33,7 @@ def b_token_file(request, tmp_path_factory):
         C.GALAXY_TOKEN_PATH = orig_token_path
 
 
-def test_client_id(monkeypatch):
+async def test_client_id(monkeypatch):
     monkeypatch.setattr(C, 'GALAXY_SERVER_LIST', ['server1', 'server2'])
 
     test_server_config = {option[0]: None for option in manager.GALAXY_SERVER_DEF}
@@ -68,7 +68,7 @@ def test_client_id(monkeypatch):
     galaxy_cli = GalaxyCLI(args=cli_args)
     mock_execute_install = MagicMock()
     monkeypatch.setattr(galaxy_cli, '_execute_install_collection', mock_execute_install)
-    galaxy_cli.run()
+    await galaxy_cli.run()
 
     assert galaxy_cli.api_servers[0].token.client_id == 'galaxy-ng'
     assert galaxy_cli.api_servers[1].token.client_id == 'cloud-services'

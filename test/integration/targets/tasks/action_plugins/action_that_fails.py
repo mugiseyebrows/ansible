@@ -4,7 +4,7 @@ from ansible.plugins.action import ActionBase
 
 
 class ActionModule(ActionBase):
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         args = self.validate_argument_spec(argument_spec=dict(
             fail_mode=dict(default='raise', choices=['raise', 'result_dict'], type='str')
         ))

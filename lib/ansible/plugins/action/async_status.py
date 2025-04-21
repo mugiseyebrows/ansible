@@ -9,14 +9,14 @@ from ansible.utils.vars import merge_hash
 
 class ActionModule(ActionBase):
 
-    def _get_async_dir(self):
+    async def _get_async_dir(self):
 
         # async directory based on the shell option
         async_dir = self.get_shell_option('async_dir', default="~/.ansible_async")
 
-        return self._remote_expand_user(async_dir)
+        return await self._remote_expand_user(async_dir)
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
 
         results = super(ActionModule, self).run(tmp, task_vars)
 
@@ -36,7 +36,7 @@ class ActionModule(ActionBase):
         mode = new_module_args["mode"]
 
         results['ansible_job_id'] = jid
-        async_dir = self._get_async_dir()
+        async_dir = await self._get_async_dir()
         log_path = self._connection._shell.join_path(async_dir, jid)
 
         if mode == 'cleanup':
@@ -46,6 +46,6 @@ class ActionModule(ActionBase):
             results['started'] = 1
 
         new_module_args['_async_dir'] = async_dir
-        results = merge_hash(results, self._execute_module(module_name='ansible.legacy.async_status', task_vars=task_vars, module_args=new_module_args))
+        results = merge_hash(results, await self._execute_module(module_name='ansible.legacy.async_status', task_vars=task_vars, module_args=new_module_args))
 
         return results

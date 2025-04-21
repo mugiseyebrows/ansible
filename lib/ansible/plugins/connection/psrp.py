@@ -428,8 +428,8 @@ class Connection(ConnectionBase):
         self.runspace = None
         self._connect()
 
-    def exec_command(self, cmd: str, in_data: bytes | None = None, sudoable: bool = True) -> tuple[int, bytes, bytes]:
-        super(Connection, self).exec_command(cmd, in_data=in_data,
+    async def exec_command(self, cmd: str, in_data: bytes | None = None, sudoable: bool = True) -> tuple[int, bytes, bytes]:
+        await super(Connection, self).exec_command(cmd, in_data=in_data,
                                              sudoable=sudoable)
 
         pwsh_in_data: bytes | str | None = None
@@ -486,8 +486,8 @@ class Connection(ConnectionBase):
         )
         return rc, stdout, stderr
 
-    def put_file(self, in_path: str, out_path: str) -> None:
-        super(Connection, self).put_file(in_path, out_path)
+    async def put_file(self, in_path: str, out_path: str) -> None:
+        await super(Connection, self).put_file(in_path, out_path)
 
         out_path = self._shell._unquote(out_path)
         display.vvv("PUT %s TO %s" % (in_path, out_path), host=self._psrp_host)
@@ -544,8 +544,8 @@ class Connection(ConnectionBase):
             raise AnsibleError("Remote sha1 hash %s does not match local hash %s"
                                % (to_native(remote_sha1), to_native(local_sha1)))
 
-    def fetch_file(self, in_path: str, out_path: str) -> None:
-        super(Connection, self).fetch_file(in_path, out_path)
+    async def fetch_file(self, in_path: str, out_path: str) -> None:
+        await super(Connection, self).fetch_file(in_path, out_path)
         display.vvv("FETCH %s TO %s" % (in_path, out_path),
                     host=self._psrp_host)
 

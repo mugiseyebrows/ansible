@@ -50,7 +50,7 @@ class TestCopyResultExclude(unittest.TestCase):
     # Issue: https://github.com/ansible/ansible/issues/16054
     # PR: https://github.com/ansible/ansible/pull/16085
 
-    def test_raw_executable_is_not_empty_string(self):
+    async def test_raw_executable_is_not_empty_string(self):
 
         task = self._build_task()
 
@@ -59,7 +59,7 @@ class TestCopyResultExclude(unittest.TestCase):
         self.mock_am.display = Mock()
         self.mock_am._admin_users = ['root', 'toor']
 
-        self.mock_am.run()
+        await self.mock_am.run()
         self.mock_am._low_level_execute_command.assert_called_with('Args1', executable=False)
 
     def test_raw_check_mode_is_True(self):
@@ -79,7 +79,7 @@ class TestCopyResultExclude(unittest.TestCase):
 
         self.assertEqual(task.environment, None)
 
-    def test_raw_task_vars_is_not_None(self):
+    async def test_raw_task_vars_is_not_None(self):
 
         task = self._build_task()
 
@@ -87,5 +87,5 @@ class TestCopyResultExclude(unittest.TestCase):
         self.mock_am._low_level_execute_command = Mock(return_value={})
         self.mock_am.display = Mock()
 
-        self.mock_am.run(task_vars={'a': 'b'})
+        await self.mock_am.run(task_vars={'a': 'b'})
         self.assertEqual(task.environment, None)

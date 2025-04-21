@@ -217,7 +217,10 @@ RETURN = r"""#"""
 
 import os
 import platform
-import pwd
+try:
+    import pwd
+except ImportError:
+    pass
 import re
 import sys
 import tempfile

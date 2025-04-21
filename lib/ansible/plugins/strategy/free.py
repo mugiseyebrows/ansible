@@ -29,7 +29,7 @@ DOCUMENTATION = """
     author: Ansible Core Team
 """
 
-import time
+import asyncio
 
 from ansible import constants as C
 from ansible.errors import AnsibleError, AnsibleParserError
@@ -52,7 +52,7 @@ class StrategyModule(StrategyBase):
         super(StrategyModule, self).__init__(tqm)
         self._host_pinned = False
 
-    def run(self, iterator, play_context):
+    async def run(self, iterator, play_context):
         """
         The "free" strategy is a bit more complex, in that it allows tasks to
         be sent to hosts as quickly as they can be processed. This means that
@@ -181,7 +181,7 @@ class StrategyModule(StrategyBase):
                                     self._tqm.send_callback('v2_playbook_on_handler_task_start', task)
                                 else:
                                     self._tqm.send_callback('v2_playbook_on_task_start', task, is_conditional=False)
-                                self._queue_task(host, task, task_vars, play_context)
+                                await self._queue_task(host, task, task_vars, play_context)
                                 # each task is counted as a worker being busy
                                 workers_free -= 1
                                 del task_vars
@@ -293,10 +293,10 @@ class StrategyModule(StrategyBase):
                 display.debug("done adding collected blocks to iterator")
 
             # pause briefly so we don't spin lock
-            time.sleep(C.DEFAULT_INTERNAL_POLL_INTERVAL)
+            await asyncio.sleep(C.DEFAULT_INTERNAL_POLL_INTERVAL)
 
         # collect all the final results
-        results = self._wait_on_pending_results(iterator)
+        results = await self._wait_on_pending_results(iterator)
 
         # run the base class run() method, which executes the cleanup function
         # and runs any outstanding handlers which have been triggered

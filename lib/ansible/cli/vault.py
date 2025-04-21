@@ -11,6 +11,7 @@ from ansible.cli import CLI
 
 import os
 import sys
+import asyncio
 
 from ansible import constants as C
 from ansible import context
@@ -148,8 +149,8 @@ class VaultCLI(CLI):
 
         return options
 
-    def run(self):
-        super(VaultCLI, self).run()
+    async def run(self):
+        await super(VaultCLI, self).run()
         loader = DataLoader()
 
         # set default restrictive umask
@@ -482,10 +483,11 @@ class VaultCLI(CLI):
 
         display.display("Rekey successful", stderr=True)
 
+async def async_main(args=None):
+    await VaultCLI.cli_executor(args)
 
 def main(args=None):
-    VaultCLI.cli_executor(args)
-
+    asyncio.run(async_main(args))
 
 if __name__ == '__main__':
     main()

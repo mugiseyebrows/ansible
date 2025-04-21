@@ -7,7 +7,7 @@ class ActionModule(ActionBase):
     TRANSFERS_FILES = False
     _VALID_ARGS = frozenset()
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         if task_vars is None:
             task_vars = dict()
 

@@ -1,7 +1,10 @@
 
 from __future__ import annotations
 
-import grp
+try:
+    import grp
+except ImportError:
+    pass
 import sys
 
 

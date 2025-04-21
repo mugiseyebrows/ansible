@@ -29,11 +29,11 @@ class ActionModule(ActionBase):
     _requires_connection = False
 
     # TODO: document this in non-empty set_stats.py module
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         if task_vars is None:
             task_vars = dict()
 
-        result = super(ActionModule, self).run(tmp, task_vars)
+        result = await super(ActionModule, self).run(tmp, task_vars)
         del tmp  # tmp no longer has any effect
 
         stats = {'data': {}, 'per_host': False, 'aggregate': True}

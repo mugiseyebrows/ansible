@@ -35,7 +35,7 @@ class ActionModule(ActionBase):
     # after chopping off a potential drive letter.
     windows_absolute_path_detection = re.compile(r'^(?:[a-zA-Z]\:)?(\\|\/)')
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         """ handler for file transfer operations """
         if task_vars is None:
             task_vars = dict()
@@ -53,7 +53,7 @@ class ActionModule(ActionBase):
             mutually_exclusive=[['_raw_params', 'cmd']],
         )
 
-        result = super(ActionModule, self).run(tmp, task_vars)
+        result = await super(ActionModule, self).run(tmp, task_vars)
         del tmp  # tmp no longer has any effect
 
         try:
@@ -62,7 +62,7 @@ class ActionModule(ActionBase):
                 # do not run the command if the line contains creates=filename
                 # and the filename already exists. This allows idempotence
                 # of command executions.
-                if self._remote_file_exists(creates):
+                if await self._remote_file_exists(creates):
                     raise AnsibleActionSkip("%s exists, matching creates option" % creates)
 
             removes = new_module_args['removes']
@@ -70,7 +70,7 @@ class ActionModule(ActionBase):
                 # do not run the command if the line contains removes=filename
                 # and the filename does not exist. This allows idempotence
                 # of command executions.
-                if not self._remote_file_exists(removes):
+                if not await self._remote_file_exists(removes):
                     raise AnsibleActionSkip("%s does not exist, matching removes option" % removes)
 
             # The chdir must be absolute, because a relative path would rely on
@@ -129,10 +129,10 @@ class ActionModule(ActionBase):
             # that would have been removed by shlex.split().
             target_command = to_text(raw_params).strip().replace(parts[0], tmp_src)
 
-            self._transfer_file(source, tmp_src)
+            await self._transfer_file(source, tmp_src)
 
             # set file permissions, more permissive when the copy is done as a different user
-            self._fixup_perms2((self._connection._shell.tmpdir, tmp_src), execute=True)
+            await self._fixup_perms2((self._connection._shell.tmpdir, tmp_src), execute=True)
 
             # add preparation steps to one ssh roundtrip executing the script
             env_dict = dict()
@@ -168,7 +168,7 @@ class ActionModule(ActionBase):
                 # full manual exec of KEEP_REMOTE_FILES
                 script_cmd = self._connection._shell.build_module_command(env_string='', shebang='#!powershell', cmd='')
 
-            result.update(self._low_level_execute_command(cmd=script_cmd, in_data=exec_data, sudoable=True, chdir=chdir))
+            result.update(await self._low_level_execute_command(cmd=script_cmd, in_data=exec_data, sudoable=True, chdir=chdir))
 
             if 'rc' in result and result['rc'] != 0:
                 raise AnsibleActionFail('non-zero return code')
@@ -176,6 +176,6 @@ class ActionModule(ActionBase):
         except AnsibleAction as e:
             result.update(e.result)
         finally:
-            self._remove_tmp_path(self._connection._shell.tmpdir)
+            await self._remove_tmp_path(self._connection._shell.tmpdir)
 
         return result

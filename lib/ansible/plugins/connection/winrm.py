@@ -719,8 +719,8 @@ class Connection(ConnectionBase):
         for i in range(0, byte_count, buffer_size):
             yield payload_bytes[i:i + buffer_size], i + buffer_size >= byte_count
 
-    def exec_command(self, cmd: str, in_data: bytes | None = None, sudoable: bool = True) -> tuple[int, bytes, bytes]:
-        super(Connection, self).exec_command(cmd, in_data=in_data, sudoable=sudoable)
+    async def exec_command(self, cmd: str, in_data: bytes | None = None, sudoable: bool = True) -> tuple[int, bytes, bytes]:
+        await super(Connection, self).exec_command(cmd, in_data=in_data, sudoable=sudoable)
 
         encoded_prefix = self._shell._encode_script('', as_list=False, strict_mode=False, preserve_rc=False)
         if cmd.startswith(encoded_prefix):
@@ -763,8 +763,8 @@ class Connection(ConnectionBase):
             if offset == 0:  # empty file, return an empty buffer + eof to close it
                 yield b"", True
 
-    def put_file(self, in_path: str, out_path: str) -> None:
-        super(Connection, self).put_file(in_path, out_path)
+    async def put_file(self, in_path: str, out_path: str) -> None:
+        await super(Connection, self).put_file(in_path, out_path)
         out_path = self._shell._unquote(out_path)
         display.vvv('PUT "%s" TO "%s"' % (in_path, out_path), host=self._winrm_host)
         if not os.path.exists(to_bytes(in_path, errors='surrogate_or_strict')):
@@ -801,8 +801,8 @@ class Connection(ConnectionBase):
         if not remote_sha1 == local_sha1:
             raise AnsibleError("Remote sha1 hash {0} does not match local hash {1}".format(to_native(remote_sha1), to_native(local_sha1)))
 
-    def fetch_file(self, in_path: str, out_path: str) -> None:
-        super(Connection, self).fetch_file(in_path, out_path)
+    async def fetch_file(self, in_path: str, out_path: str) -> None:
+        await super(Connection, self).fetch_file(in_path, out_path)
         in_path = self._shell._unquote(in_path)
         out_path = out_path.replace('\\', '/')
         # consistent with other connection plugins, we assume the caller has created the target dir

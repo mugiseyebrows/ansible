@@ -12,11 +12,18 @@ from __future__ import annotations
 from select import select
 import os
 import sys
-import tty
+try:
+    import tty
+except ImportError:
+    pass
 
 # names imported directly for test mocking purposes
 from os import close, waitpid
-from tty import setraw, tcgetattr, tcsetattr
+
+try:
+    from tty import setraw, tcgetattr, tcsetattr
+except ImportError:
+    pass
 
 __all__ = ["openpty", "fork", "spawn"]
 

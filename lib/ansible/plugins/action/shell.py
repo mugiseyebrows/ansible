@@ -9,7 +9,7 @@ from ansible.plugins.action import ActionBase
 
 class ActionModule(ActionBase):
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         del tmp  # tmp no longer has any effect
 
         # Shell module is implemented via command with a special arg

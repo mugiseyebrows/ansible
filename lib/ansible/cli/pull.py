@@ -18,6 +18,7 @@ import shutil
 import socket
 import sys
 import time
+import asyncio
 
 from ansible import constants as C
 from ansible import context
@@ -187,10 +188,10 @@ class PullCLI(CLI):
 
         return options
 
-    def run(self):
+    async def run(self):
         """ use Runner lib to do SSH things """
 
-        super(PullCLI, self).run()
+        await super(PullCLI, self).run()
 
         # log command line
         now = datetime.datetime.now()
@@ -403,9 +404,11 @@ class PullCLI(CLI):
             return playbook
 
 
+async def async_main(args=None):
+    await PullCLI.cli_executor(args)
+
 def main(args=None):
-    PullCLI.cli_executor(args)
+    asyncio.run(async_main(args))
 
-
-if __name__ == '__main__':
+if __name__ == '__main__': 
     main()

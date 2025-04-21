@@ -538,7 +538,7 @@ class LegacyModuleUtilLocator(ModuleUtilLocatorBase):
         # find_spec needs the full module name
         self._info = info = importlib.machinery.PathFinder.find_spec('.'.join(name_parts), paths)
         if info is not None and info.origin is not None and os.path.splitext(info.origin)[1] in importlib.machinery.SOURCE_SUFFIXES:
-            self.is_package = info.origin.endswith('/__init__.py')
+            self.is_package = os.path.basename(info.origin) == '__init__.py'
             path = info.origin
         else:
             return False
@@ -840,6 +840,22 @@ def _is_binary(b_module_data):
     return bool(start.translate(None, textchars))
 
 
+def ansible_modules_fqn(module_path):
+    path = module_path.split('/')
+    path[-1] = os.path.splitext(path[-1])[0]
+    for i, n in enumerate(path):
+        if n == 'ansible':
+            if i+1 < len(path) and path[i+1] == 'modules':
+                return '.'.join(path[i:])
+
+def ansible_collections_fqn(module_path):
+    path = module_path.split('/')
+    path[-1] = os.path.splitext(path[-1])[0]
+    for i, n in enumerate(path):
+        if n == 'ansible_collections':
+            if 'modules' in path[i:]:
+                return path[i:]
+
 def _get_ansible_module_fqn(module_path):
     """
     Get the fully qualified name for an ansible module based on its pathname
@@ -849,28 +865,16 @@ def _get_ansible_module_fqn(module_path):
     .. warning:: This function is for ansible modules only.  It won't work for other things
         (non-module plugins, etc)
     """
-    remote_module_fqn = None
-
-    # Is this a core module?
-    match = CORE_LIBRARY_PATH_RE.search(module_path)
-    if not match:
-        # Is this a module in a collection?
-        match = COLLECTION_PATH_RE.search(module_path)
-
-    # We can tell the FQN for core modules and collection modules
-    if match:
-        path = match.group('path')
-        if '.' in path:
-            # FQNs must be valid as python identifiers.  This sanity check has failed.
-            # we could check other things as well
-            raise ValueError('Module name (or path) was not a valid python identifier')
-
-        remote_module_fqn = '.'.join(path.split('/'))
-    else:
-        # Currently we do not handle modules in roles so we can end up here for that reason
-        raise ValueError("Unable to determine module's fully qualified name")
-
-    return remote_module_fqn
+    module_path = module_path.replace('\\', '/')
+    fqn = ansible_modules_fqn(module_path)
+    if fqn:
+        return fqn
+    
+    fqn = ansible_collections_fqn(module_path)
+    if fqn:
+        return fqn
+    
+    raise ValueError("Unable to determine module's fully qualified name {}".format(module_path))
 
 
 def _add_module_to_zip(zf: zipfile.ZipFile, date_time: datetime.datetime, remote_module_fqn: str, b_module_data: bytes) -> None:
@@ -1049,7 +1053,7 @@ def _find_module_utils(
         else:
             display.debug('ANSIBALLZ: Acquiring lock')
             lock_path = f'{cached_module_filename}.lock'
-            with _locking.named_mutex(lock_path):
+            with _locking.no_mutex(lock_path):
                 display.debug(f'ANSIBALLZ: Lock acquired: {lock_path}')
                 # Check that no other process has created this while we were
                 # waiting for the lock

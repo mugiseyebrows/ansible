@@ -4,7 +4,7 @@ from ansible.plugins.action import ActionBase
 
 
 class ActionModule(ActionBase):
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         self._display.deprecated("a deprecation warning", version="2.99")
         self._display.warning("a warning")
 

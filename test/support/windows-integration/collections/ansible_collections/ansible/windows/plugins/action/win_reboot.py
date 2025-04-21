@@ -41,7 +41,7 @@ class ActionModule(ActionBase):
         'test_command',
     ))
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         self._supports_check_mode = True
         self._supports_async = True
 
@@ -51,7 +51,7 @@ class ActionModule(ActionBase):
         if task_vars is None:
             task_vars = {}
 
-        super(ActionModule, self).run(tmp, task_vars)
+        await super(ActionModule, self).run(tmp, task_vars)
 
         parameters = {}
         for names, check_func in [

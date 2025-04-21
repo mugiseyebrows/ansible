@@ -19,7 +19,7 @@ class ActionModule(ActionBase):
 
         return super().finalize_task_arg(name, value, templar, context)
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         # accepts a list of literal expressions (no templating), evaluates with no failure on undefined, returns all results
         _vr, args = self.validate_argument_spec(
             argument_spec=dict(

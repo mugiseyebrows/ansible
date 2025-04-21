@@ -23,7 +23,7 @@ class InterpreterDiscoveryRequiredError(Exception):
         self.discovery_mode = discovery_mode
 
 
-def discover_interpreter(action, interpreter_name, discovery_mode, task_vars):
+async def discover_interpreter(action, interpreter_name, discovery_mode, task_vars):
     """Probe the target host for a Python interpreter from the `INTERPRETER_PYTHON_FALLBACK` list, returning the first found or `/usr/bin/python3` if none."""
     host = task_vars.get('inventory_hostname', 'unknown')
     res = None
@@ -46,7 +46,7 @@ def discover_interpreter(action, interpreter_name, discovery_mode, task_vars):
         shell_bootstrap = "echo FOUND; {0}; echo ENDFOUND".format('; '.join(command_list))
 
         # FUTURE: in most cases we probably don't want to use become, but maybe sometimes we do?
-        res = action._low_level_execute_command(shell_bootstrap, sudoable=False)
+        res = await action._low_level_execute_command(shell_bootstrap, sudoable=False)
 
         raw_stdout = res.get('stdout', u'')
 

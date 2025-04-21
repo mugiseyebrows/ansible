@@ -31,14 +31,14 @@ class Connection(ConnectionBase):
     def _connect(self):
         super(Connection, self)._connect()
 
-    def exec_command(self, cmd, in_data=None, sudoable=True):
-        super(Connection, self).exec_command(cmd, in_data, sudoable)
+    async def exec_command(self, cmd, in_data=None, sudoable=True):
+        await super(Connection, self).exec_command(cmd, in_data, sudoable)
 
-    def put_file(self, in_path, out_path):
-        super(Connection, self).put_file(in_path, out_path)
+    async def put_file(self, in_path, out_path):
+        await super(Connection, self).put_file(in_path, out_path)
 
-    def fetch_file(self, in_path, out_path):
-        super(Connection, self).fetch_file(in_path, out_path)
+    async def fetch_file(self, in_path, out_path):
+        await super(Connection, self).fetch_file(in_path, out_path)
 
     def close(self):
         super(Connection, self).close()

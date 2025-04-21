@@ -15,11 +15,11 @@ class ActionModule(ActionBase):
 
     TRANSFERS_FILES = False
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         self._supports_check_mode = True
         self._supports_async = True
 
-        result = super(ActionModule, self).run(tmp, task_vars)
+        result = await super(ActionModule, self).run(tmp, task_vars)
         del tmp  # tmp no longer has any effect
 
         # Carry-over concept from the package action plugin
@@ -37,7 +37,7 @@ class ActionModule(ActionBase):
                 pass  # could not get it from template!
 
         if module not in VALID_BACKENDS:
-            facts = self._execute_module(
+            facts = await self._execute_module(
                 module_name="ansible.legacy.setup", module_args=dict(filter="ansible_pkg_mgr", gather_subset="!all"),
                 task_vars=task_vars)
 
@@ -78,7 +78,7 @@ class ActionModule(ActionBase):
                     del new_module_args['use']
 
                 display.vvvv("Running %s as the backend for the dnf action plugin" % module)
-                result.update(self._execute_module(
+                result.update(await self._execute_module(
                     module_name=module, module_args=new_module_args, task_vars=task_vars, wrap_async=self._task.async_val))
 
         return result

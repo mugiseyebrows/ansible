@@ -92,7 +92,7 @@ class StrategyModule(StrategyBase):
 
         return host_tasks
 
-    def run(self, iterator, play_context):
+    async def run(self, iterator, play_context):
         """
         The linear strategy is simple - get the next task and queue
         it for all hosts, then wait for the queue to drain before
@@ -190,7 +190,7 @@ class StrategyModule(StrategyBase):
                             callback_sent = True
 
                         self._blocked_hosts[host_name] = True
-                        self._queue_task(host, task, task_vars, play_context)
+                        await self._queue_task(host, task, task_vars, play_context)
                         del task_vars
 
                     if isinstance(task, Handler):
@@ -211,7 +211,7 @@ class StrategyModule(StrategyBase):
 
                 display.debug("done queuing things up, now waiting for results queue to drain")
                 if self._pending_results > 0:
-                    results.extend(self._wait_on_pending_results(iterator))
+                    results.extend(await self._wait_on_pending_results(iterator))
 
                 self.update_active_connections(results)
 
@@ -361,4 +361,4 @@ class StrategyModule(StrategyBase):
         # run the base class run() method, which executes the cleanup function
         # and runs any outstanding handlers which have been triggered
 
-        return super(StrategyModule, self).run(iterator, play_context, result)
+        return await super(StrategyModule, self).run(iterator, play_context, result)

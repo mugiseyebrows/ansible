@@ -45,7 +45,7 @@ def collection_path_suffix(request):
 
 
 @pytest.fixture
-def collection_input(tmp_path_factory, collection_path_suffix):
+async def collection_input(tmp_path_factory, collection_path_suffix):
     """Create a collection skeleton directory for build tests."""
     test_dir = to_text(tmp_path_factory.mktemp(collection_path_suffix))
 
@@ -55,7 +55,7 @@ def collection_input(tmp_path_factory, collection_path_suffix):
 
     galaxy_args = ['ansible-galaxy', 'collection', 'init', '%s.%s' % (namespace, collection),
                    '-c', '--init-path', test_dir, '--collection-skeleton', skeleton]
-    GalaxyCLI(args=galaxy_args).run()
+    await GalaxyCLI(args=galaxy_args).run()
     collection_dir = os.path.join(test_dir, namespace, collection)
     output_dir = to_text(tmp_path_factory.mktemp('test-ÅÑŚÌβŁÈ Collections Output'))
 
@@ -199,7 +199,7 @@ def manifest(manifest_info):
         ("+", False),
     ]
 )
-def test_cli_options(required_signature_count, valid, monkeypatch):
+async def test_cli_options(required_signature_count, valid, monkeypatch):
     cli_args = [
         'ansible-galaxy',
         'collection',
@@ -216,10 +216,10 @@ def test_cli_options(required_signature_count, valid, monkeypatch):
     monkeypatch.setattr(galaxy_cli, '_execute_install_collection', mock_execute_install)
 
     if valid:
-        galaxy_cli.run()
+        await galaxy_cli.run()
     else:
         with pytest.raises(SystemExit, match='2') as error:
-            galaxy_cli.run()
+            await galaxy_cli.run()
 
 
 @pytest.mark.parametrize(
@@ -247,7 +247,7 @@ def test_cli_options(required_signature_count, valid, monkeypatch):
         ),
     ],
 )
-def test_bool_type_server_config_options(config, server, monkeypatch):
+async def test_bool_type_server_config_options(config, server, monkeypatch):
     cli_args = [
         'ansible-galaxy',
         'collection',
@@ -275,14 +275,14 @@ def test_bool_type_server_config_options(config, server, monkeypatch):
                 galaxy_cli = GalaxyCLI(args=cli_args)
                 mock_execute_install = MagicMock()
                 monkeypatch.setattr(galaxy_cli, '_execute_install_collection', mock_execute_install)
-                galaxy_cli.run()
+                await galaxy_cli.run()
 
     assert galaxy_cli.api_servers[0].name == 'server1'
     assert galaxy_cli.api_servers[0].validate_certs == server['validate_certs']
 
 
 @pytest.mark.parametrize('global_ignore_certs', [True, False])
-def test_validate_certs(global_ignore_certs, monkeypatch):
+async def test_validate_certs(global_ignore_certs, monkeypatch):
     cli_args = [
         'ansible-galaxy',
         'collection',
@@ -295,7 +295,7 @@ def test_validate_certs(global_ignore_certs, monkeypatch):
     galaxy_cli = GalaxyCLI(args=cli_args)
     mock_execute_install = MagicMock()
     monkeypatch.setattr(galaxy_cli, '_execute_install_collection', mock_execute_install)
-    galaxy_cli.run()
+    await galaxy_cli.run()
 
     assert len(galaxy_cli.api_servers) == 1
     assert galaxy_cli.api_servers[0].validate_certs is not global_ignore_certs
@@ -312,7 +312,7 @@ def test_validate_certs(global_ignore_certs, monkeypatch):
         (True, False, False),
     ]
 )
-def test_validate_certs_with_server_url(ignore_certs_cli, ignore_certs_cfg, expected_validate_certs, monkeypatch):
+async def test_validate_certs_with_server_url(ignore_certs_cli, ignore_certs_cfg, expected_validate_certs, monkeypatch):
     cli_args = [
         'ansible-galaxy',
         'collection',
@@ -329,7 +329,7 @@ def test_validate_certs_with_server_url(ignore_certs_cli, ignore_certs_cfg, expe
     galaxy_cli = GalaxyCLI(args=cli_args)
     mock_execute_install = MagicMock()
     monkeypatch.setattr(galaxy_cli, '_execute_install_collection', mock_execute_install)
-    galaxy_cli.run()
+    await galaxy_cli.run()
 
     assert len(galaxy_cli.api_servers) == 1
     assert galaxy_cli.api_servers[0].validate_certs == expected_validate_certs
@@ -346,7 +346,7 @@ def test_validate_certs_with_server_url(ignore_certs_cli, ignore_certs_cfg, expe
         (True, False, False, False),
     ]
 )
-def test_validate_certs_server_config(ignore_certs_cfg, ignore_certs_cli, expected_server2_validate_certs, expected_server3_validate_certs, monkeypatch):
+async def test_validate_certs_server_config(ignore_certs_cfg, ignore_certs_cli, expected_server2_validate_certs, expected_server3_validate_certs, monkeypatch):
     server_names = ['server1', 'server2', 'server3']
     cfg_lines = [
         "[galaxy]",
@@ -382,7 +382,7 @@ def test_validate_certs_server_config(ignore_certs_cfg, ignore_certs_cli, expect
         galaxy_cli = GalaxyCLI(args=cli_args)
         mock_execute_install = MagicMock()
         monkeypatch.setattr(galaxy_cli, '_execute_install_collection', mock_execute_install)
-        galaxy_cli.run()
+        await galaxy_cli.run()
 
     # (not) --ignore-certs > server's validate_certs > (not) GALAXY_IGNORE_CERTS > True
     assert galaxy_cli.api_servers[0].validate_certs is False
@@ -399,7 +399,7 @@ def test_validate_certs_server_config(ignore_certs_cfg, ignore_certs_cli, expect
         (30, 20, 10, 30),
     ]
 )
-def test_timeout_server_config(timeout_cli, timeout_cfg, timeout_fallback, expected_timeout, monkeypatch):
+async def test_timeout_server_config(timeout_cli, timeout_cfg, timeout_fallback, expected_timeout, monkeypatch):
     cli_args = [
         'ansible-galaxy',
         'collection',
@@ -434,7 +434,7 @@ def test_timeout_server_config(timeout_cli, timeout_cfg, timeout_fallback, expec
         galaxy_cli = GalaxyCLI(args=cli_args)
         mock_execute_install = MagicMock()
         monkeypatch.setattr(galaxy_cli, '_execute_install_collection', mock_execute_install)
-        galaxy_cli.run()
+        await galaxy_cli.run()
 
     assert galaxy_cli.api_servers[0].timeout == expected_timeout
 
@@ -973,26 +973,26 @@ def test_extract_tar_file_outside_dir(tmp_path_factory):
             collection._extract_tar_file(tfile, tar_filename, os.path.join(temp_dir, to_bytes(filename)), temp_dir)
 
 
-def test_require_one_of_collections_requirements_with_both():
+async def test_require_one_of_collections_requirements_with_both():
     cli = GalaxyCLI(args=['ansible-galaxy', 'collection', 'verify', 'namespace.collection', '-r', 'requirements.yml'])
 
     with pytest.raises(AnsibleError) as req_err:
         cli._require_one_of_collections_requirements(('namespace.collection',), 'requirements.yml')
 
     with pytest.raises(AnsibleError) as cli_err:
-        cli.run()
+        await cli.run()
 
     assert req_err.value.message == cli_err.value.message == 'The positional collection_name arg and --requirements-file are mutually exclusive.'
 
 
-def test_require_one_of_collections_requirements_with_neither():
+async def test_require_one_of_collections_requirements_with_neither():
     cli = GalaxyCLI(args=['ansible-galaxy', 'collection', 'verify'])
 
     with pytest.raises(AnsibleError) as req_err:
         cli._require_one_of_collections_requirements((), '')
 
     with pytest.raises(AnsibleError) as cli_err:
-        cli.run()
+        await cli.run()
 
     assert req_err.value.message == cli_err.value.message == 'You must specify a collection name or a requirements file.'
 
@@ -1018,38 +1018,38 @@ def test_require_one_of_collections_requirements_with_requirements(mock_parse_re
 
 
 @patch('ansible.cli.galaxy.GalaxyCLI.execute_verify', spec=True)
-def test_call_GalaxyCLI(execute_verify):
+async def test_call_GalaxyCLI(execute_verify):
     galaxy_args = ['ansible-galaxy', 'collection', 'verify', 'namespace.collection']
 
-    GalaxyCLI(args=galaxy_args).run()
+    await GalaxyCLI(args=galaxy_args).run()
 
     assert execute_verify.call_count == 1
 
 
 @patch('ansible.cli.galaxy.GalaxyCLI.execute_verify')
-def test_call_GalaxyCLI_with_implicit_role(execute_verify):
+async def test_call_GalaxyCLI_with_implicit_role(execute_verify):
     galaxy_args = ['ansible-galaxy', 'verify', 'namespace.implicit_role']
 
     with pytest.raises(SystemExit):
-        GalaxyCLI(args=galaxy_args).run()
+        await GalaxyCLI(args=galaxy_args).run()
 
     assert not execute_verify.called
 
 
 @patch('ansible.cli.galaxy.GalaxyCLI.execute_verify')
-def test_call_GalaxyCLI_with_role(execute_verify):
+async def test_call_GalaxyCLI_with_role(execute_verify):
     galaxy_args = ['ansible-galaxy', 'role', 'verify', 'namespace.role']
 
     with pytest.raises(SystemExit):
-        GalaxyCLI(args=galaxy_args).run()
+        await GalaxyCLI(args=galaxy_args).run()
 
     assert not execute_verify.called
 
 
 @patch('ansible.cli.galaxy.verify_collections', spec=True)
-def test_execute_verify_with_defaults(mock_verify_collections):
+async def test_execute_verify_with_defaults(mock_verify_collections):
     galaxy_args = ['ansible-galaxy', 'collection', 'verify', 'namespace.collection:1.0.4']
-    GalaxyCLI(args=galaxy_args).run()
+    await GalaxyCLI(args=galaxy_args).run()
 
     assert mock_verify_collections.call_count == 1
 
@@ -1064,8 +1064,8 @@ def test_execute_verify_with_defaults(mock_verify_collections):
 
 
 @patch('ansible.cli.galaxy.verify_collections', spec=True)
-def test_execute_verify(mock_verify_collections):
-    GalaxyCLI(args=[
+async def test_execute_verify(mock_verify_collections):
+    await GalaxyCLI(args=[
         'ansible-galaxy', 'collection', 'verify', 'namespace.collection:1.0.4', '--ignore-certs',
         '-p', '~/.ansible', '--ignore-errors', '--server', 'http://galaxy-dev.com',
     ]).run()

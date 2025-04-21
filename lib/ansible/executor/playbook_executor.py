@@ -73,7 +73,7 @@ class PlaybookExecutor:
         # therefore would be discarded after every task.
         set_default_transport()
 
-    def run(self):
+    async def run(self):
         """
         Run the given playbook, based on the settings in the play which
         may limit the runs to serialized groups, etc.
@@ -185,7 +185,7 @@ class PlaybookExecutor:
                             self._inventory.restrict_to_hosts(batch)
                             # and run it...
                             try:
-                                result = self._tqm.run(play=play)
+                                result = await self._tqm.run(play=play)
                             except AnsibleEndPlay as e:
                                 result = e.result
                                 break

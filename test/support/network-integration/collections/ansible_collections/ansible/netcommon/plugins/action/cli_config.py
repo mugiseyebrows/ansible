@@ -25,7 +25,7 @@ from ansible_collections.ansible.netcommon.plugins.action.network import (
 
 
 class ActionModule(ActionNetworkModule):
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         del tmp  # tmp no longer has any effect
 
         self._config_module = True

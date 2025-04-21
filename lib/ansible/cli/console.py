@@ -16,6 +16,7 @@ import getpass
 import readline
 import os
 import sys
+import asyncio
 
 from ansible import constants as C
 from ansible import context
@@ -159,7 +160,7 @@ class ConsoleCLI(CLI, cmd.Cmd):
     def list_modules(self):
         return list_plugins('module', self.collections)
 
-    def default(self, line, forceshell=False):
+    async def default(self, line, forceshell=False):
         """ actually runs modules """
         if line.startswith("#"):
             return False
@@ -228,7 +229,7 @@ class ConsoleCLI(CLI, cmd.Cmd):
                     forks=self.forks,
                 )
 
-                result = self._tqm.run(play)
+                result = await self._tqm.run(play)
                 display.debug(result)
             finally:
                 if self._tqm:
@@ -249,7 +250,7 @@ class ConsoleCLI(CLI, cmd.Cmd):
     def emptyline(self):
         return
 
-    def do_shell(self, arg):
+    async def do_shell(self, arg):
         """
         You can run shell commands through the shell module.
 
@@ -261,7 +262,7 @@ class ConsoleCLI(CLI, cmd.Cmd):
         You can use the ! to force the shell module. eg.:
         !ps aux | grep java | wc -l
         """
-        self.default(arg, True)
+        await self.default(arg, True)
 
     def help_shell(self):
         display.display("You can run shell commands through the shell module.")
@@ -520,9 +521,9 @@ class ConsoleCLI(CLI, cmd.Cmd):
         oc, a, _dummy1, _dummy2 = plugin_docs.get_docstring(in_path, fragment_loader, is_module=True)
         return list(oc['options'].keys())
 
-    def run(self):
+    async def run(self):
 
-        super(ConsoleCLI, self).run()
+        await super(ConsoleCLI, self).run()
 
         sshpass = None
         becomepass = None
@@ -601,9 +602,11 @@ class ConsoleCLI(CLI, cmd.Cmd):
         return attr
 
 
-def main(args=None):
-    ConsoleCLI.cli_executor(args)
+async def async_main(args=None):
+    await ConsoleCLI.cli_executor(args)
 
+def main(args=None):
+    asyncio.run(async_main(args))
 
 if __name__ == '__main__':
     main()

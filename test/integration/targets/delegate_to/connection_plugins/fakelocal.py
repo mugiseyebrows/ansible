@@ -53,22 +53,22 @@ class Connection(ConnectionBase):
             self._connected = True
         return self
 
-    def exec_command(self, cmd, in_data=None, sudoable=True):
+    async def exec_command(self, cmd, in_data=None, sudoable=True):
         """ run a command on the local host """
 
-        super(Connection, self).exec_command(cmd, in_data=in_data, sudoable=sudoable)
+        await super(Connection, self).exec_command(cmd, in_data=in_data, sudoable=sudoable)
 
         return 0, '{"msg": "ALL IS GOOD"}', ''
 
-    def put_file(self, in_path, out_path):
+    async def put_file(self, in_path, out_path):
         """ transfer a file from local to local """
 
-        super(Connection, self).put_file(in_path, out_path)
+        await super(Connection, self).put_file(in_path, out_path)
 
-    def fetch_file(self, in_path, out_path):
+    async def fetch_file(self, in_path, out_path):
         """ fetch a file from local to local -- for compatibility """
 
-        super(Connection, self).fetch_file(in_path, out_path)
+        await super(Connection, self).fetch_file(in_path, out_path)
 
     def close(self):
         """ terminate the connection; nothing to do here """

@@ -282,9 +282,15 @@ skipped_paths:
 
 import errno
 import fnmatch
-import grp
+try:
+    import grp
+except ImportError:
+    pass
 import os
-import pwd
+try:
+    import pwd
+except ImportError:
+    pass
 import re
 import stat
 import time

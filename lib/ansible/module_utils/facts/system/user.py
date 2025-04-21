@@ -17,7 +17,10 @@ from __future__ import annotations
 
 import getpass
 import os
-import pwd
+try:
+    import pwd
+except ImportError:
+    pass
 import typing as t
 
 from ansible.module_utils.facts.collector import BaseFactCollector

@@ -15,7 +15,10 @@
 
 from __future__ import annotations
 
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    pass
 import os
 
 

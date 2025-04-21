@@ -36,7 +36,7 @@ class ActionModule(ActionBase):
     TRANSFERS_FILES = False
     _requires_connection = False
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         validation_result, new_module_args = self.validate_argument_spec(
             argument_spec=dict(
                 msg=dict(type='raw', default='Hello world!'),
@@ -48,7 +48,7 @@ class ActionModule(ActionBase):
             ),
         )
 
-        result = super(ActionModule, self).run(tmp, task_vars)
+        result = await super(ActionModule, self).run(tmp, task_vars)
         del tmp  # tmp no longer has any effect
 
         # get task verbosity

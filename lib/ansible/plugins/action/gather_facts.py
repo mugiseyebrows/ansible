@@ -96,9 +96,9 @@ class ActionModule(ActionBase):
             # no network OS and setup not in list, add setup by default since 'smart'
             modules.append('ansible.legacy.setup')
 
-    def run(self, tmp: t.Optional[str] = None, task_vars: t.Optional[dict[str, t.Any]] = None) -> dict[str, t.Any]:
+    async def run(self, tmp: t.Optional[str] = None, task_vars: t.Optional[dict[str, t.Any]] = None) -> dict[str, t.Any]:
 
-        result = super(ActionModule, self).run(tmp, task_vars)
+        result = await super(ActionModule, self).run(tmp, task_vars)
         result['ansible_facts'] = {}
 
         # copy the value with list() so we don't mutate the config
@@ -127,7 +127,7 @@ class ActionModule(ActionBase):
                 # just one module, no need for fancy async
                 mod_args = self._get_module_args(fact_module, task_vars)
                 # TODO: use gather_timeout to cut module execution if module itself does not support gather_timeout
-                res = self._execute_module(module_name=fact_module, module_args=mod_args, task_vars=task_vars, wrap_async=False)
+                res = await self._execute_module(module_name=fact_module, module_args=mod_args, task_vars=task_vars, wrap_async=False)
                 if res.get('failed', False):
                     # DTFIX-RELEASE: this trashes the individual failure details and does not work with the new error handling; need to do something to
                     # invoke per-item error handling- perhaps returning this as a synthetic loop result?
@@ -137,7 +137,7 @@ class ActionModule(ActionBase):
                 else:
                     result = self._combine_task_result(result, res)
 
-            self._remove_tmp_path(self._connection._shell.tmpdir)
+            await self._remove_tmp_path(self._connection._shell.tmpdir)
         else:
             # do it async, aka parallel
             jobs = {}
@@ -155,12 +155,12 @@ class ActionModule(ActionBase):
                     self._task.async_val = 0
 
                 self._display.vvvv("Running %s" % fact_module)
-                jobs[fact_module] = (self._execute_module(module_name=fact_module, module_args=mod_args, task_vars=task_vars, wrap_async=True))
+                jobs[fact_module] = (await self._execute_module(module_name=fact_module, module_args=mod_args, task_vars=task_vars, wrap_async=True))
 
             while jobs:
                 for module in jobs:
                     poll_args = {'jid': jobs[module]['ansible_job_id'], '_async_dir': os.path.dirname(jobs[module]['results_file'])}
-                    res = self._execute_module(module_name='ansible.legacy.async_status', module_args=poll_args, task_vars=task_vars, wrap_async=False)
+                    res = await self._execute_module(module_name='ansible.legacy.async_status', module_args=poll_args, task_vars=task_vars, wrap_async=False)
                     if res.get('finished', 0) == 1:
                         if res.get('failed', False):
                             # DTFIX-RELEASE: this trashes the individual failure details and does not work with the new error handling; need to do something to

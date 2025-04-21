@@ -38,7 +38,11 @@ DOCUMENTATION = """
 import functools
 import getpass
 import os
-import pty
+import sys
+
+if sys.platform != 'win32':
+    import pty
+
 import selectors
 import shutil
 import subprocess
@@ -84,10 +88,10 @@ class Connection(ConnectionBase):
             self._connected = True
         return self
 
-    def exec_command(self, cmd: str, in_data: bytes | None = None, sudoable: bool = True) -> tuple[int, bytes, bytes]:
+    async def exec_command(self, cmd: str, in_data: bytes | None = None, sudoable: bool = True) -> tuple[int, bytes, bytes]:
         """ run a command on the local host """
 
-        super(Connection, self).exec_command(cmd, in_data=in_data, sudoable=sudoable)
+        await super(Connection, self).exec_command(cmd, in_data=in_data, sudoable=sudoable)
 
         display.debug("in local.exec_command()")
 
@@ -256,10 +260,10 @@ class Connection(ConnectionBase):
 
         return timeout
 
-    def put_file(self, in_path: str, out_path: str) -> None:
+    async def put_file(self, in_path: str, out_path: str) -> None:
         """ transfer a file from local to local """
 
-        super(Connection, self).put_file(in_path, out_path)
+        await super(Connection, self).put_file(in_path, out_path)
 
         in_path = unfrackpath(in_path, basedir=self.cwd)
         out_path = unfrackpath(out_path, basedir=self.cwd)
@@ -274,13 +278,13 @@ class Connection(ConnectionBase):
         except IOError as e:
             raise AnsibleError("failed to transfer file to {0}: {1}".format(to_native(out_path), to_native(e)))
 
-    def fetch_file(self, in_path: str, out_path: str) -> None:
+    async def fetch_file(self, in_path: str, out_path: str) -> None:
         """ fetch a file from local to local -- for compatibility """
 
-        super(Connection, self).fetch_file(in_path, out_path)
+        await super(Connection, self).fetch_file(in_path, out_path)
 
         display.vvv(u"FETCH {0} TO {1}".format(in_path, out_path), host=self._play_context.remote_addr)
-        self.put_file(in_path, out_path)
+        await self.put_file(in_path, out_path)
 
     def reset(self) -> None:
         pass

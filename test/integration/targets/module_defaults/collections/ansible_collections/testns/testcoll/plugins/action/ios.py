@@ -8,9 +8,9 @@ from ansible.plugins.action.normal import ActionModule as ActionBase
 
 class ActionModule(ActionBase):
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
 
-        result = super(ActionModule, self).run(tmp, task_vars)
+        result = await super(ActionModule, self).run(tmp, task_vars)
         result['action_plugin'] = 'ios'
 
         return result

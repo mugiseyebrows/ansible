@@ -402,17 +402,17 @@ DOCUMENTATION = """
 
 import collections.abc as c
 import argparse
-import errno
+
 import contextlib
-import fcntl
+
 import hashlib
 import io
 import json
 import os
 import pathlib
-import pty
+
 import re
-import selectors
+
 import shlex
 import shutil
 import subprocess
@@ -422,6 +422,7 @@ import time
 import typing as t
 from functools import wraps
 from multiprocessing.shared_memory import SharedMemory
+import asyncio
 
 from ansible import constants as C
 from ansible.errors import (
@@ -551,7 +552,7 @@ def _ssh_retry(
     * retries limit reached
     """
     @wraps(func)
-    def wrapped(self: Connection, *args: P.args, **kwargs: P.kwargs) -> tuple[int, bytes, bytes]:
+    async def wrapped(self: Connection, *args: P.args, **kwargs: P.kwargs) -> tuple[int, bytes, bytes]:
         remaining_tries = int(self.get_option('reconnection_retries')) + 1
         cmd_summary = u"%s..." % to_text(args[0])
         conn_password = self.get_option('password') or self._play_context.password
@@ -611,7 +612,7 @@ def _ssh_retry(
 
                     display.vv(msg, host=self.host)
 
-                    time.sleep(pause)
+                    await asyncio.sleep(pause)
                     continue
 
         return return_tuple
@@ -860,6 +861,10 @@ class Connection(ConnectionBase):
 
         # Next, we add ssh_args
         ssh_args = self.get_option('ssh_args')
+
+        if sys.platform == 'win32':
+            ssh_args = ssh_args.replace('-o ControlMaster=auto', '-o ControlMaster=no').replace('-o ControlPersist=60s', '')
+
         if ssh_args:
             b_args = [to_bytes(a, errors='surrogate_or_strict') for a in
                       self._split_ssh_args(ssh_args)]
@@ -1089,311 +1094,33 @@ class Connection(ConnectionBase):
 
         return popen_kwargs
 
-    @_clean_shm
-    def _bare_run(self, cmd: list[bytes], in_data: bytes | None, sudoable: bool = True, checkrc: bool = True) -> tuple[int, bytes, bytes]:
+    async def _bare_run(self, cmd: list[bytes], in_data: bytes | None, sudoable: bool = True, checkrc: bool = True) -> tuple[int, bytes, bytes]:
         """
         Starts the command and communicates with it until it ends.
         """
-
-        # We don't use _shell.quote as this is run on the controller and independent from the shell plugin chosen
-        display_cmd = u' '.join(shlex.quote(to_text(c)) for c in cmd)
-        display.vvv(u'SSH: EXEC {0}'.format(display_cmd), host=self.host)
-
-        conn_password = self.get_option('password') or self._play_context.password
-        password_mechanism = self.get_option('password_mechanism')
-
-        # Start the given command. If we don't need to pipeline data, we can try
-        # to use a pseudo-tty (ssh will have been invoked with -tt). If we are
-        # pipelining data, or can't create a pty, we fall back to using plain
-        # old pipes.
-
-        p = None
 
         if isinstance(cmd, (text_type, binary_type)):
             cmd = to_bytes(cmd)
         else:
             cmd = list(map(to_bytes, cmd))
 
-        popen_kwargs = self._init_shm()
+        if in_data:
+            stdin = subprocess.PIPE
+        else:
+            stdin = None
 
-        if self.sshpass_pipe:
-            popen_kwargs['pass_fds'] = self.sshpass_pipe
+        proc = await asyncio.create_subprocess_exec(*cmd, stdin=stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        b_stdout, b_stderr = await proc.communicate(in_data)
 
-        if not in_data:
-            try:
-                # Make sure stdin is a proper pty to avoid tcgetattr errors
-                master, slave = pty.openpty()
-                p = subprocess.Popen(cmd, stdin=slave, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **popen_kwargs)
-                stdin = os.fdopen(master, 'wb', 0)
-                os.close(slave)
-            except (OSError, IOError):
-                p = None
+        return (proc.returncode, b_stdout, b_stderr)
 
-        if not p:
-            try:
-                p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                     stderr=subprocess.PIPE, **popen_kwargs)
-                stdin = p.stdin  # type: ignore[assignment] # stdin will be set and not None due to the calls above
-            except (OSError, IOError) as e:
-                raise AnsibleError('Unable to execute ssh command line on a controller due to: %s' % to_native(e))
-
-        if password_mechanism == 'sshpass' and conn_password:
-            os.close(self.sshpass_pipe[0])
-            try:
-                os.write(self.sshpass_pipe[1], to_bytes(conn_password) + b'\n')
-            except OSError as e:
-                # Ignore broken pipe errors if the sshpass process has exited.
-                if e.errno != errno.EPIPE or p.poll() is None:
-                    raise
-            os.close(self.sshpass_pipe[1])
-
-        #
-        # SSH state machine
-        #
-
-        # Now we read and accumulate output from the running process until it
-        # exits. Depending on the circumstances, we may also need to write an
-        # escalation password and/or pipelined input to the process.
-
-        states = [
-            'awaiting_prompt', 'awaiting_escalation', 'ready_to_send', 'awaiting_exit'
-        ]
-
-        # Are we requesting privilege escalation? Right now, we may be invoked
-        # to execute sftp/scp with sudoable=True, but we can request escalation
-        # only when using ssh. Otherwise we can send initial data straightaway.
-
-        state = states.index('ready_to_send')
-        if to_bytes(self.get_option('ssh_executable')) in cmd and sudoable:
-            prompt = getattr(self.become, 'prompt', None)
-            if prompt:
-                # We're requesting escalation with a password, so we have to
-                # wait for a password prompt.
-                state = states.index('awaiting_prompt')
-                display.debug(u'Initial state: %s: %s' % (states[state], to_text(prompt)))
-            elif self.become and self.become.success:
-                # We're requesting escalation without a password, so we have to
-                # detect success/failure before sending any initial data.
-                state = states.index('awaiting_escalation')
-                display.debug(u'Initial state: %s: %s' % (states[state], to_text(self.become.success)))
-
-        # We store accumulated stdout and stderr output from the process here,
-        # but strip any privilege escalation prompt/confirmation lines first.
-        # Output is accumulated into tmp_*, complete lines are extracted into
-        # an array, then checked and removed or copied to stdout or stderr. We
-        # set any flags based on examining the output in self._flags.
-
-        b_stdout = b_stderr = b''
-        b_tmp_stdout = b_tmp_stderr = b''
-
-        self._flags = dict(
-            become_prompt=False, become_success=False,
-            become_error=False, become_nopasswd_error=False
-        )
-
-        # select timeout should be longer than the connect timeout, otherwise
-        # they will race each other when we can't connect, and the connect
-        # timeout usually fails
-        timeout = 2 + self.get_option('timeout')
-        for fd in (p.stdout, p.stderr):
-            fcntl.fcntl(fd, fcntl.F_SETFL, fcntl.fcntl(fd, fcntl.F_GETFL) | os.O_NONBLOCK)
-
-        # TODO: bcoca would like to use SelectSelector() when open
-        # select is faster when filehandles is low and we only ever handle 1.
-        selector = selectors.DefaultSelector()
-        selector.register(p.stdout, selectors.EVENT_READ)
-        selector.register(p.stderr, selectors.EVENT_READ)
-
-        # If we can send initial data without waiting for anything, we do so
-        # before we start polling
-        if states[state] == 'ready_to_send' and in_data:
-            self._send_initial_data(stdin, in_data, p)
-            state += 1
-
-        try:
-            while True:
-                poll = p.poll()
-                events = selector.select(timeout)
-
-                # We pay attention to timeouts only while negotiating a prompt.
-
-                if not events:
-                    # We timed out
-                    if state <= states.index('awaiting_escalation'):
-                        # If the process has already exited, then it's not really a
-                        # timeout; we'll let the normal error handling deal with it.
-                        if poll is not None:
-                            break
-                        self._terminate_process(p)
-                        raise AnsibleConnectionFailure('Timeout (%ds) waiting for privilege escalation prompt: %s' % (timeout, to_native(b_stdout)))
-
-                    display.vvvvv(f'SSH: Timeout ({timeout}s) waiting for the output', host=self.host)
-
-                # Read whatever output is available on stdout and stderr, and stop
-                # listening to the pipe if it's been closed.
-
-                for key, event in events:
-                    if key.fileobj == p.stdout:
-                        b_chunk = p.stdout.read()
-                        if b_chunk == b'':
-                            # stdout has been closed, stop watching it
-                            selector.unregister(p.stdout)
-                            # When ssh has ControlMaster (+ControlPath/Persist) enabled, the
-                            # first connection goes into the background and we never see EOF
-                            # on stderr. If we see EOF on stdout, lower the select timeout
-                            # to reduce the time wasted selecting on stderr if we observe
-                            # that the process has not yet existed after this EOF. Otherwise
-                            # we may spend a long timeout period waiting for an EOF that is
-                            # not going to arrive until the persisted connection closes.
-                            timeout = 1
-                        b_tmp_stdout += b_chunk
-                        display.debug(u"stdout chunk (state=%s):\n>>>%s<<<\n" % (state, to_text(b_chunk)))
-                    elif key.fileobj == p.stderr:
-                        b_chunk = p.stderr.read()
-                        if b_chunk == b'':
-                            # stderr has been closed, stop watching it
-                            selector.unregister(p.stderr)
-                        b_tmp_stderr += b_chunk
-                        display.debug("stderr chunk (state=%s):\n>>>%s<<<\n" % (state, to_text(b_chunk)))
-
-                # We examine the output line-by-line until we have negotiated any
-                # privilege escalation prompt and subsequent success/error message.
-                # Afterwards, we can accumulate output without looking at it.
-
-                if state < states.index('ready_to_send'):
-                    if b_tmp_stdout:
-                        b_output, b_unprocessed = self._examine_output('stdout', states[state], b_tmp_stdout, sudoable)
-                        b_stdout += b_output
-                        b_tmp_stdout = b_unprocessed
-
-                    if b_tmp_stderr:
-                        b_output, b_unprocessed = self._examine_output('stderr', states[state], b_tmp_stderr, sudoable)
-                        b_stderr += b_output
-                        b_tmp_stderr = b_unprocessed
-                else:
-                    b_stdout += b_tmp_stdout
-                    b_stderr += b_tmp_stderr
-                    b_tmp_stdout = b_tmp_stderr = b''
-
-                # If we see a privilege escalation prompt, we send the password.
-                # (If we're expecting a prompt but the escalation succeeds, we
-                # didn't need the password and can carry on regardless.)
-
-                if states[state] == 'awaiting_prompt':
-                    if self._flags['become_prompt']:
-                        display.debug(u'Sending become_password in response to prompt')
-                        become_pass = self.become.get_option('become_pass', playcontext=self._play_context)
-                        stdin.write(to_bytes(become_pass, errors='surrogate_or_strict') + b'\n')
-                        # On python3 stdin is a BufferedWriter, and we don't have a guarantee
-                        # that the write will happen without a flush
-                        stdin.flush()
-                        self._flags['become_prompt'] = False
-                        state += 1
-                    elif self._flags['become_success']:
-                        state += 1
-
-                # We've requested escalation (with or without a password), now we
-                # wait for an error message or a successful escalation.
-
-                if states[state] == 'awaiting_escalation':
-                    if self._flags['become_success']:
-                        display.vvv(u'Escalation succeeded', host=self.host)
-                        self._flags['become_success'] = False
-                        state += 1
-                    elif self._flags['become_error']:
-                        display.vvv(u'Escalation failed', host=self.host)
-                        self._terminate_process(p)
-                        self._flags['become_error'] = False
-                        raise AnsibleError('Incorrect %s password' % self.become.name)
-                    elif self._flags['become_nopasswd_error']:
-                        display.vvv(u'Escalation requires password', host=self.host)
-                        self._terminate_process(p)
-                        self._flags['become_nopasswd_error'] = False
-                        raise AnsibleError('Missing %s password' % self.become.name)
-                    elif self._flags['become_prompt']:
-                        # This shouldn't happen, because we should see the "Sorry,
-                        # try again" message first.
-                        display.vvv(u'Escalation prompt repeated', host=self.host)
-                        self._terminate_process(p)
-                        self._flags['become_prompt'] = False
-                        raise AnsibleError('Incorrect %s password' % self.become.name)
-
-                # Once we're sure that the privilege escalation prompt, if any, has
-                # been dealt with, we can send any initial data and start waiting
-                # for output.
-
-                if states[state] == 'ready_to_send':
-                    if in_data:
-                        self._send_initial_data(stdin, in_data, p)
-                    state += 1
-
-                # Now we're awaiting_exit: has the child process exited? If it has,
-                # and we've read all available output from it, we're done.
-
-                if poll is not None:
-                    if not selector.get_map() or not events:
-                        break
-                    # We should not see further writes to the stdout/stderr file
-                    # descriptors after the process has closed, set the select
-                    # timeout to gather any last writes we may have missed.
-                    timeout = 0
-                    continue
-
-                # If the process has not yet exited, but we've already read EOF from
-                # its stdout and stderr (and thus no longer watching any file
-                # descriptors), we can just wait for it to exit.
-
-                elif not selector.get_map():
-                    p.wait()
-                    break
-
-                # Otherwise there may still be outstanding data to read.
-        finally:
-            selector.close()
-            # close stdin, stdout, and stderr after process is terminated and
-            # stdout/stderr are read completely (see also issues #848, #64768).
-            stdin.close()
-            p.stdout.close()
-            p.stderr.close()
-
-        conn_password = self.get_option('password') or self._play_context.password
-        hostkey_fail = any((
-            (cmd[0] == b"sshpass" and p.returncode == 6),
-            b"read_passphrase: can't open /dev/tty" in b_stderr,
-            b"Host key verification failed" in b_stderr,
-        ))
-        if password_mechanism and self.get_option('host_key_checking') and conn_password and hostkey_fail:
-            raise AnsibleError('Using a SSH password instead of a key is not possible because Host Key checking is enabled. '
-                               'Please add this host\'s fingerprint to your known_hosts file to manage this host.')
-
-        controlpersisterror = b'Bad configuration option: ControlPersist' in b_stderr or b'unknown configuration option: ControlPersist' in b_stderr
-        if p.returncode != 0 and controlpersisterror:
-            raise AnsibleError('using -c ssh on certain older ssh versions may not support ControlPersist, set ANSIBLE_SSH_ARGS="" '
-                               '(or ssh_args in [ssh_connection] section of the config file) before running again')
-
-        # If we find a broken pipe because of ControlPersist timeout expiring (see #16731),
-        # we raise a special exception so that we can retry a connection.
-        controlpersist_broken_pipe = b'mux_client_hello_exchange: write packet: Broken pipe' in b_stderr
-        if p.returncode == 255:
-
-            additional = to_native(b_stderr)
-            if controlpersist_broken_pipe:
-                raise AnsibleControlPersistBrokenPipeError('Data could not be sent because of ControlPersist broken pipe: %s' % additional)
-
-            elif in_data and checkrc:
-                raise AnsibleConnectionFailure('Data could not be sent to remote host "%s". Make sure this host can be reached over ssh: %s'
-                                               % (self.host, additional))
-
-        return (p.returncode, b_stdout, b_stderr)
-
-    @_ssh_retry
-    def _run(self, cmd: list[bytes], in_data: bytes | None, sudoable: bool = True, checkrc: bool = True) -> tuple[int, bytes, bytes]:
+    
+    async def _run(self, cmd: list[bytes], in_data: bytes | None, sudoable: bool = True, checkrc: bool = True) -> tuple[int, bytes, bytes]:
         """Wrapper around _bare_run that retries the connection
         """
-        return self._bare_run(cmd, in_data, sudoable=sudoable, checkrc=checkrc)
+        return await self._bare_run(cmd, in_data, sudoable=sudoable, checkrc=checkrc)
 
-    @_ssh_retry
-    def _file_transport_command(self, in_path: str, out_path: str, sftp_action: str) -> tuple[int, bytes, bytes]:
+    async def _file_transport_command(self, in_path: str, out_path: str, sftp_action: str) -> tuple[int, bytes, bytes]:
         # scp and sftp require square brackets for IPv6 addresses, but
         # accept them for hostnames and IPv4 addresses too.
         host = '[%s]' % self.host
@@ -1421,7 +1148,7 @@ class Connection(ConnectionBase):
                 cmd = self._build_command(self.get_option('sftp_executable'), 'sftp', to_bytes(host))
                 in_data = u"{0} {1} {2}\n".format(sftp_action, shlex.quote(in_path), shlex.quote(out_path))
                 in_data = to_bytes(in_data, nonstring='passthru')
-                (returncode, stdout, stderr) = self._bare_run(cmd, in_data, checkrc=False)
+                (returncode, stdout, stderr) = await self._bare_run(cmd, in_data, checkrc=False)
             elif method == 'scp':
                 scp = self.get_option('scp_executable')
 
@@ -1430,12 +1157,12 @@ class Connection(ConnectionBase):
                 else:
                     cmd = self._build_command(scp, 'scp', in_path, u'{0}:{1}'.format(host, self._shell.quote(out_path)))
                 in_data = None
-                (returncode, stdout, stderr) = self._bare_run(cmd, in_data, checkrc=False)
+                (returncode, stdout, stderr) = await self._bare_run(cmd, in_data, checkrc=False)
             elif method == 'piped':
                 if sftp_action == 'get':
                     # we pass sudoable=False to disable pty allocation, which
                     # would end up mixing stdout/stderr and screwing with newlines
-                    (returncode, stdout, stderr) = self.exec_command('dd if=%s bs=%s' % (self._shell.quote(in_path), BUFSIZE), sudoable=False)
+                    (returncode, stdout, stderr) = await self.exec_command('dd if=%s bs=%s' % (self._shell.quote(in_path), BUFSIZE), sudoable=False)
                     with open(to_bytes(out_path, errors='surrogate_or_strict'), 'wb+') as out_file:
                         out_file.write(stdout)
                 else:
@@ -1445,7 +1172,7 @@ class Connection(ConnectionBase):
                         count = ' count=0'
                     else:
                         count = ''
-                    (returncode, stdout, stderr) = self.exec_command('dd of=%s bs=%s%s' % (out_path, BUFSIZE, count), in_data=in_data, sudoable=False)
+                    (returncode, stdout, stderr) = await self.exec_command('dd of=%s bs=%s%s' % (out_path, BUFSIZE, count), in_data=in_data, sudoable=False)
 
             # Check the return code and rollover to next method if failed
             if returncode == 0:
@@ -1476,10 +1203,10 @@ class Connection(ConnectionBase):
     #
     # Main public methods
     #
-    def exec_command(self, cmd: str, in_data: bytes | None = None, sudoable: bool = True) -> tuple[int, bytes, bytes]:
+    async def exec_command(self, cmd: str, in_data: bytes | None = None, sudoable: bool = True) -> tuple[int, bytes, bytes]:
         """ run a command on the remote host """
 
-        super(Connection, self).exec_command(cmd, in_data=in_data, sudoable=sudoable)
+        await super(Connection, self).exec_command(cmd, in_data=in_data, sudoable=sudoable)
 
         self.host = self.get_option('host') or self._play_context.remote_addr
 
@@ -1509,7 +1236,7 @@ class Connection(ConnectionBase):
             args = (self.host, cmd)
 
         cmd = self._build_command(ssh_executable, 'ssh', *args)
-        (returncode, stdout, stderr) = self._run(cmd, in_data, sudoable=sudoable)
+        (returncode, stdout, stderr) = await self._run(cmd, in_data, sudoable=sudoable)
 
         # When running on Windows, stderr may contain CLIXML encoded output
         if getattr(self._shell, "_IS_WINDOWS", False):
@@ -1517,10 +1244,10 @@ class Connection(ConnectionBase):
 
         return (returncode, stdout, stderr)
 
-    def put_file(self, in_path: str, out_path: str) -> tuple[int, bytes, bytes]:  # type: ignore[override]  # Used by tests and would break API
+    async def put_file(self, in_path: str, out_path: str) -> tuple[int, bytes, bytes]:  # type: ignore[override]  # Used by tests and would break API
         """ transfer a file from local to remote """
 
-        super(Connection, self).put_file(in_path, out_path)
+        await super(Connection, self).put_file(in_path, out_path)
 
         self.host = self.get_option('host') or self._play_context.remote_addr
 
@@ -1531,12 +1258,12 @@ class Connection(ConnectionBase):
         if getattr(self._shell, "_IS_WINDOWS", False):
             out_path = self._escape_win_path(out_path)
 
-        return self._file_transport_command(in_path, out_path, 'put')
+        return await self._file_transport_command(in_path, out_path, 'put')
 
-    def fetch_file(self, in_path: str, out_path: str) -> tuple[int, bytes, bytes]:  # type: ignore[override]  # Used by tests and would break API
+    async def fetch_file(self, in_path: str, out_path: str) -> tuple[int, bytes, bytes]:  # type: ignore[override]  # Used by tests and would break API
         """ fetch a file from remote to local """
 
-        super(Connection, self).fetch_file(in_path, out_path)
+        await super(Connection, self).fetch_file(in_path, out_path)
 
         self.host = self.get_option('host') or self._play_context.remote_addr
 
@@ -1546,7 +1273,7 @@ class Connection(ConnectionBase):
         if getattr(self._shell, "_IS_WINDOWS", False):
             in_path = self._escape_win_path(in_path)
 
-        return self._file_transport_command(in_path, out_path, 'get')
+        return await self._file_transport_command(in_path, out_path, 'get')
 
     def reset(self) -> None:
 

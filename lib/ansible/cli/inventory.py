@@ -15,6 +15,7 @@ import typing as t
 
 import argparse
 import functools
+import asyncio
 
 from ansible import constants as C
 from ansible import context
@@ -108,9 +109,9 @@ class InventoryCLI(CLI):
 
         return options
 
-    def run(self):
+    async def run(self):
 
-        super(InventoryCLI, self).run()
+        await super(InventoryCLI, self).run()
 
         # Initialize needed objects
         self.loader, self.inventory, self.vm = self._play_prereqs()
@@ -411,9 +412,11 @@ def toml_dumps(data: t.Any) -> str:
     raise AnsibleRuntimeError('The Python library "tomli-w" is required when using the TOML output format.')
 
 
-def main(args=None):
-    InventoryCLI.cli_executor(args)
+async def async_main(args=None):
+    await InventoryCLI.cli_execu
 
+def main(args=None):
+    asyncio.run(async_main(args))
 
 if __name__ == '__main__':
     main()

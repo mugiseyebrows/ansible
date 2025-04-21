@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import asyncio
 
 # ansible.cli needs to be imported first, to ensure the source bin/* scripts run that code first
 from ansible.cli import CLI
@@ -104,10 +105,10 @@ class AdHocCLI(CLI):
             gather_facts='no',
             tasks=[mytask])
 
-    def run(self):
+    async def run(self):
         """ create and execute the single task playbook """
 
-        super(AdHocCLI, self).run()
+        await super(AdHocCLI, self).run()
 
         # only thing left should be host pattern
         pattern = to_text(context.CLIARGS['args'], errors='surrogate_or_strict')
@@ -193,7 +194,7 @@ class AdHocCLI(CLI):
             self._tqm.load_callbacks()
             self._tqm.send_callback('v2_playbook_on_start', playbook)
 
-            result = self._tqm.run(play)
+            result = await self._tqm.run(play)
 
             self._tqm.send_callback('v2_playbook_on_stats', self._tqm._stats)
         finally:
@@ -205,9 +206,11 @@ class AdHocCLI(CLI):
         return result
 
 
-def main(args=None):
-    AdHocCLI.cli_executor(args)
+async def async_main(args=None):
+    await AdHocCLI.cli_executor(args)
 
+def main(args=None):
+    asyncio.run(async_main(args))
 
 if __name__ == '__main__':
     main()

@@ -12,6 +12,7 @@ import os
 import shlex
 import sys
 import yaml
+import asyncio
 
 from collections.abc import Mapping
 
@@ -147,9 +148,9 @@ class ConfigCLI(CLI):
 
         return options
 
-    def run(self):
+    async def run(self):
 
-        super(ConfigCLI, self).run()
+        await super(ConfigCLI, self).run()
 
         # initialize each galaxy server's options from known listed servers
         self._galaxy_servers = [s for s in C.GALAXY_SERVER_LIST or [] if s]  # clean list, reused later here
@@ -691,9 +692,11 @@ class ConfigCLI(CLI):
         display.display("All configurations seem valid!")
 
 
-def main(args=None):
-    ConfigCLI.cli_executor(args)
+async def async_main(args=None):
+    await ConfigCLI.cli_executor(args)
 
+def main(args=None):
+    asyncio.run(async_main(args))
 
 if __name__ == '__main__':
     main()

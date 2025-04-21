@@ -11,6 +11,7 @@ from ansible.cli import CLI
 
 import os
 import stat
+import asyncio
 
 from ansible import constants as C
 from ansible import context
@@ -86,9 +87,9 @@ class PlaybookCLI(CLI):
 
         return options
 
-    def run(self):
+    async def run(self):
 
-        super(PlaybookCLI, self).run()
+        await super(PlaybookCLI, self).run()
 
         # Note: slightly wrong, this is written so that implicit localhost
         # manages passwords
@@ -150,7 +151,7 @@ class PlaybookCLI(CLI):
                                 variable_manager=variable_manager, loader=loader,
                                 passwords=passwords)
 
-        results = pbex.run()
+        results = await pbex.run()
 
         if isinstance(results, list):
             for p in results:
@@ -227,9 +228,11 @@ class PlaybookCLI(CLI):
             return results
 
 
-def main(args=None):
-    PlaybookCLI.cli_executor(args)
+async def async_main(args=None):
+    await PlaybookCLI.cli_executor(args)
 
+def main(args=None):
+    asyncio.run(async_main(args))
 
 if __name__ == '__main__':
     main()

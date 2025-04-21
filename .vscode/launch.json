@@ -1,0 +1,16 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "playbook",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "lib/ansible/cli/playbook.py",
+            "args": "-i inventory.yml playbook.yml -v",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/lib"
+            },
+            "console": "integratedTerminal"
+        }
+    ]
+}

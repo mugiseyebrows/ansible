@@ -75,3 +75,6 @@ class ShellModule(ShellBase):
         cmd = (" %s " % self._SHELL_OR).join(csums)
         cmd = "%s; %s %s (echo \'0  \'%s)" % (test, cmd, self._SHELL_OR, shell_escaped_path)
         return cmd
+    
+    def _unquote(self, cmd):
+        return cmd

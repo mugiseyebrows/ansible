@@ -32,12 +32,12 @@ display = Display()
 
 class ActionModule(ActionBase):
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         """ handler for fetch operations """
         if task_vars is None:
             task_vars = dict()
 
-        result = super(ActionModule, self).run(tmp, task_vars)
+        result = await super(ActionModule, self).run(tmp, task_vars)
         del tmp  # tmp no longer has any effect
 
         try:
@@ -65,7 +65,7 @@ class ActionModule(ActionBase):
                 raise AnsibleActionFail(msg)
 
             source = self._connection._shell.join_path(source)
-            source = self._remote_expand_user(source)
+            source = await self._remote_expand_user(source)
 
             remote_stat = {}
             remote_checksum = None
@@ -73,7 +73,7 @@ class ActionModule(ActionBase):
                 # Get checksum for the remote file. Don't bother if using become as slurp will be used.
                 # Follow symlinks because fetch always follows symlinks
                 try:
-                    remote_stat = self._execute_remote_stat(source, all_vars=task_vars, follow=True)
+                    remote_stat = await self._execute_remote_stat(source, all_vars=task_vars, follow=True)
                 except AnsibleConnectionFailure:
                     raise
                 except AnsibleError as ae:
@@ -109,7 +109,7 @@ class ActionModule(ActionBase):
             # use slurp if permissions are lacking or privilege escalation is needed
             remote_data = None
             if remote_checksum in (None, '1', ''):
-                slurpres = self._execute_module(module_name='ansible.legacy.slurp', module_args=dict(src=source), task_vars=task_vars)
+                slurpres = await self._execute_module(module_name='ansible.legacy.slurp', module_args=dict(src=source), task_vars=task_vars)
                 if slurpres.get('failed'):
                     if not fail_on_missing:
                         result['file'] = source
@@ -175,7 +175,7 @@ class ActionModule(ActionBase):
 
                 # fetch the file and check for changes
                 if remote_data is None:
-                    self._connection.fetch_file(source, dest)
+                    await self._connection.fetch_file(source, dest)
                 else:
                     try:
                         with open(to_bytes(dest, errors='surrogate_or_strict'), 'wb') as f:
@@ -206,6 +206,6 @@ class ActionModule(ActionBase):
                 result.update(dict(changed=False, md5sum=local_md5, file=source, dest=dest, checksum=local_checksum))
 
         finally:
-            self._remove_tmp_path(self._connection._shell.tmpdir)
+            await self._remove_tmp_path(self._connection._shell.tmpdir)
 
         return result

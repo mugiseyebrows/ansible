@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import secrets
 import time
+import asyncio
 
 from datetime import datetime, timedelta, timezone
 
@@ -133,11 +134,11 @@ class ActionModule(ActionBase):
             reboot_message = self._task.args.get('msg', self.DEFAULT_REBOOT_MESSAGE)
             return args.format(delay_sec=self.pre_reboot_delay, delay_min=delay_min, message=reboot_message)
 
-    def get_distribution(self, task_vars):
+    async def get_distribution(self, task_vars):
         # FIXME: only execute the module if we don't already have the facts we need
         distribution = {}
         display.debug('{action}: running setup module to get distribution'.format(action=self._task.action))
-        module_output = self._execute_module(
+        module_output = await self._execute_module(
             task_vars=task_vars,
             module_name='ansible.legacy.setup',
             module_args={'gather_subset': 'min'})
@@ -154,7 +155,7 @@ class ActionModule(ActionBase):
         except KeyError as ke:
             raise AnsibleError('Failed to get distribution information. Missing "{0}" in output.'.format(ke.args[0]))
 
-    def get_shutdown_command(self, task_vars, distribution):
+    async def get_shutdown_command(self, task_vars, distribution):
         reboot_command = self._task.args.get('reboot_command')
         if reboot_command is not None:
             try:
@@ -183,7 +184,7 @@ class ActionModule(ActionBase):
                 command=shutdown_bin,
                 paths=search_paths))
 
-            find_result = self._execute_module(
+            find_result = await self._execute_module(
                 task_vars=task_vars,
                 # prevent collection search by calling with ansible.legacy (still allows library/ override of find)
                 module_name='ansible.legacy.find',
@@ -207,7 +208,7 @@ class ActionModule(ActionBase):
                     arg=arg,
                     action=self._task.action))
 
-    def get_system_boot_time(self, distribution):
+    async def get_system_boot_time(self, distribution):
         boot_time_command = self._get_value_from_facts('BOOT_TIME_COMMANDS', distribution, 'DEFAULT_BOOT_TIME_COMMAND')
         if self._task.args.get('boot_time_command'):
             boot_time_command = self._task.args.get('boot_time_command')
@@ -218,7 +219,7 @@ class ActionModule(ActionBase):
                 raise AnsibleError("Invalid value given for 'boot_time_command': %s." % to_native(e))
 
         display.debug("{action}: getting boot time with command: '{command}'".format(action=self._task.action, command=boot_time_command))
-        command_result = self._low_level_execute_command(boot_time_command, sudoable=self.DEFAULT_SUDOABLE)
+        command_result = await self._low_level_execute_command(boot_time_command, sudoable=self.DEFAULT_SUDOABLE)
 
         if command_result['rc'] != 0:
             stdout = command_result['stdout']
@@ -231,7 +232,7 @@ class ActionModule(ActionBase):
         display.debug("{action}: last boot time: {boot}".format(action=self._task.action, boot=command_result['stdout'].strip()))
         return command_result['stdout'].strip()
 
-    def check_boot_time(self, distribution, previous_boot_time):
+    async def check_boot_time(self, distribution, previous_boot_time):
         display.vvv("{action}: attempting to get system boot time".format(action=self._task.action))
         connect_timeout = self._task.args.get('connect_timeout', self._task.args.get('connect_timeout_sec', self.DEFAULT_CONNECT_TIMEOUT))
 
@@ -250,7 +251,7 @@ class ActionModule(ActionBase):
 
         # try and get boot time
         try:
-            current_boot_time = self.get_system_boot_time(distribution)
+            current_boot_time = await self.get_system_boot_time(distribution)
         except Exception as e:
             raise e
 
@@ -259,12 +260,12 @@ class ActionModule(ActionBase):
         if len(current_boot_time) == 0 or current_boot_time == previous_boot_time:
             raise ValueError("boot time has not changed")
 
-    def run_test_command(self, distribution, **kwargs):
+    async def run_test_command(self, distribution, **kwargs):
         test_command = self._task.args.get('test_command', self._get_value_from_facts('TEST_COMMANDS', distribution, 'DEFAULT_TEST_COMMAND'))
         display.vvv("{action}: attempting post-reboot test command".format(action=self._task.action))
         display.debug("{action}: attempting post-reboot test command '{command}'".format(action=self._task.action, command=test_command))
         try:
-            command_result = self._low_level_execute_command(test_command, sudoable=self.DEFAULT_SUDOABLE)
+            command_result = await self._low_level_execute_command(test_command, sudoable=self.DEFAULT_SUDOABLE)
         except Exception:
             # may need to reset the connection in case another reboot occurred
             # which has invalidated our connection
@@ -282,7 +283,7 @@ class ActionModule(ActionBase):
 
         display.vvv("{action}: system successfully rebooted".format(action=self._task.action))
 
-    def do_until_success_or_timeout(self, action, reboot_timeout, action_desc, distribution, action_kwargs=None):
+    async def do_until_success_or_timeout(self, action, reboot_timeout, action_desc, distribution, action_kwargs=None):
         max_end_time = datetime.now(timezone.utc) + timedelta(seconds=reboot_timeout)
         if action_kwargs is None:
             action_kwargs = {}
@@ -293,7 +294,7 @@ class ActionModule(ActionBase):
 
         while datetime.now(timezone.utc) < max_end_time:
             try:
-                action(distribution=distribution, **action_kwargs)
+                await action(distribution=distribution, **action_kwargs)
                 if action_desc:
                     display.debug('{action}: {desc} success'.format(action=self._task.action, desc=action_desc))
                 return
@@ -320,7 +321,7 @@ class ActionModule(ActionBase):
                     display.debug(msg)
                     display.vvv(msg)
                 fail_count += 1
-                time.sleep(fail_sleep)
+                await asyncio.sleep(fail_sleep)
 
         if last_error_msg:
             msg = f"Last error message before the timeout exception - {last_error_msg}"
@@ -328,17 +329,17 @@ class ActionModule(ActionBase):
             display.vvv(msg)
         raise TimedOutException('Timed out waiting for {desc} (timeout={timeout})'.format(desc=action_desc, timeout=reboot_timeout))
 
-    def perform_reboot(self, task_vars, distribution):
+    async def perform_reboot(self, task_vars, distribution):
         result = {}
         reboot_result = {}
-        shutdown_command = self.get_shutdown_command(task_vars, distribution)
+        shutdown_command = await self.get_shutdown_command(task_vars, distribution)
         shutdown_command_args = self.get_shutdown_command_args(distribution)
         reboot_command = '{0} {1}'.format(shutdown_command, shutdown_command_args)
 
         try:
             display.vvv("{action}: rebooting server...".format(action=self._task.action))
             display.debug("{action}: rebooting server with command '{command}'".format(action=self._task.action, command=reboot_command))
-            reboot_result = self._low_level_execute_command(reboot_command, sudoable=self.DEFAULT_SUDOABLE)
+            reboot_result = await self._low_level_execute_command(reboot_command, sudoable=self.DEFAULT_SUDOABLE)
         except AnsibleConnectionFailure as e:
             # If the connection is closed too quickly due to the system being shutdown, carry on
             display.debug('{action}: AnsibleConnectionFailure caught and handled: {error}'.format(action=self._task.action, error=to_text(e)))
@@ -357,7 +358,7 @@ class ActionModule(ActionBase):
         result['failed'] = False
         return result
 
-    def validate_reboot(self, distribution, original_connection_timeout=None, action_kwargs=None):
+    async def validate_reboot(self, distribution, original_connection_timeout=None, action_kwargs=None):
         display.vvv('{action}: validating reboot'.format(action=self._task.action))
         result = {}
 
@@ -365,7 +366,7 @@ class ActionModule(ActionBase):
             # keep on checking system boot_time with short connection responses
             reboot_timeout = int(self._task.args.get('reboot_timeout', self._task.args.get('reboot_timeout_sec', self.DEFAULT_REBOOT_TIMEOUT)))
 
-            self.do_until_success_or_timeout(
+            await self.do_until_success_or_timeout(
                 action=self.check_boot_time,
                 action_desc="last boot time check",
                 reboot_timeout=reboot_timeout,
@@ -400,7 +401,7 @@ class ActionModule(ActionBase):
 
             # finally run test command to ensure everything is working
             # FUTURE: add a stability check (system must remain up for N seconds) to deal with self-multi-reboot updates
-            self.do_until_success_or_timeout(
+            await self.do_until_success_or_timeout(
                 action=self.run_test_command,
                 action_desc="post-reboot test command",
                 reboot_timeout=reboot_timeout,
@@ -418,7 +419,7 @@ class ActionModule(ActionBase):
 
         return result
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         self._supports_check_mode = True
 
         # If running with local connection, fail so we don't reboot ourselves
@@ -434,16 +435,16 @@ class ActionModule(ActionBase):
 
         self.deprecated_args()
 
-        result = super(ActionModule, self).run(tmp, task_vars)
+        result = await super(ActionModule, self).run(tmp, task_vars)
 
         if result.get('skipped', False) or result.get('failed', False):
             return result
 
-        distribution = self.get_distribution(task_vars)
+        distribution = await self.get_distribution(task_vars)
 
         # Get current boot time
         try:
-            previous_boot_time = self.get_system_boot_time(distribution)
+            previous_boot_time = await self.get_system_boot_time(distribution)
         except Exception as e:
             result['failed'] = True
             result['reboot'] = False
@@ -463,7 +464,7 @@ class ActionModule(ActionBase):
                 display.debug("{action}: connect_timeout connection option has not been set".format(action=self._task.action))
 
         # Initiate reboot
-        reboot_result = self.perform_reboot(task_vars, distribution)
+        reboot_result = await self.perform_reboot(task_vars, distribution)
 
         if reboot_result['failed']:
             result = reboot_result
@@ -477,7 +478,7 @@ class ActionModule(ActionBase):
             time.sleep(self.post_reboot_delay)
 
         # Make sure reboot was successful
-        result = self.validate_reboot(distribution, original_connection_timeout, action_kwargs={'previous_boot_time': previous_boot_time})
+        result = await self.validate_reboot(distribution, original_connection_timeout, action_kwargs={'previous_boot_time': previous_boot_time})
 
         elapsed = datetime.now(timezone.utc) - reboot_result['start']
         result['elapsed'] = elapsed.seconds

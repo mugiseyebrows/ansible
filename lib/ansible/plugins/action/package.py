@@ -32,13 +32,13 @@ class ActionModule(ActionBase):
 
     BUILTIN_PKG_MGR_MODULES = {manager['name'] for manager in PKG_MGRS}
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         """ handler for package operations """
 
         self._supports_check_mode = True
         self._supports_async = True
 
-        result = super(ActionModule, self).run(tmp, task_vars)
+        result = await super(ActionModule, self).run(tmp, task_vars)
 
         module = self._task.args.get('use', 'auto')
 
@@ -63,7 +63,7 @@ class ActionModule(ActionBase):
                     else:
                         # we had no facts, so generate them
                         # very expensive step, we actually run fact gathering because we don't have facts for this host.
-                        facts = self._execute_module(
+                        facts = await self._execute_module(
                             module_name='ansible.legacy.setup',
                             module_args=dict(filter='ansible_pkg_mgr', gather_subset='!all'),
                             task_vars=task_vars,
@@ -99,7 +99,7 @@ class ActionModule(ActionBase):
                         module = 'ansible.legacy.' + module
 
                     display.vvvv("Running %s" % module)
-                    result.update(self._execute_module(module_name=module, module_args=new_module_args, task_vars=task_vars, wrap_async=self._task.async_val))
+                    result.update(await self._execute_module(module_name=module, module_args=new_module_args, task_vars=task_vars, wrap_async=self._task.async_val))
             else:
                 raise AnsibleActionFail('Could not detect which package manager to use. Try gathering facts or setting the "use" option.')
 

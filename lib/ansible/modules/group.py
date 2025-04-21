@@ -129,7 +129,10 @@ system:
   sample: False
 """
 
-import grp
+try:
+    import grp
+except ImportError:
+    pass
 import os
 
 from ansible.module_utils.common.text.converters import to_bytes

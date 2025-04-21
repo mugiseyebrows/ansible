@@ -5,7 +5,10 @@ from __future__ import annotations
 import os
 import pexpect
 import sys
-import termios
+try:
+    import termios
+except ImportError:
+    pass
 
 from ansible.module_utils.six import PY2
 

@@ -491,12 +491,18 @@ uid:
 
 import ctypes.util
 from datetime import datetime
-import grp
+try:
+    import grp
+except ImportError:
+    pass
 import calendar
 import os
 import re
 import pty
-import pwd
+try:
+    import pwd
+except ImportError:
+    pass
 import select
 import shutil
 import socket

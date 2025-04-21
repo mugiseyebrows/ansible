@@ -4,7 +4,7 @@ from ansible.plugins.action import ActionBase
 
 
 class ActionModule(ActionBase):
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         result = super().run(tmp, task_vars)
 
         if self._task.args and 'msg' in self._task.args:

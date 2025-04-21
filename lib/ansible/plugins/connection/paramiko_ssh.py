@@ -235,7 +235,10 @@ import os
 import socket
 import tempfile
 import traceback
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    pass
 import re
 import typing as t
 
@@ -463,10 +466,10 @@ class Connection(ConnectionBase):
 
         return ssh
 
-    def exec_command(self, cmd: str, in_data: bytes | None = None, sudoable: bool = True) -> tuple[int, bytes, bytes]:
+    async def exec_command(self, cmd: str, in_data: bytes | None = None, sudoable: bool = True) -> tuple[int, bytes, bytes]:
         """ run a command on the remote host """
 
-        super(Connection, self).exec_command(cmd, in_data=in_data, sudoable=sudoable)
+        await super(Connection, self).exec_command(cmd, in_data=in_data, sudoable=sudoable)
 
         if in_data:
             raise AnsibleError("Internal Error: this module does not support optimized module pipelining")
@@ -543,10 +546,10 @@ class Connection(ConnectionBase):
 
         return (chan.recv_exit_status(), no_prompt_out + stdout, no_prompt_out + stderr)
 
-    def put_file(self, in_path: str, out_path: str) -> None:
+    async def put_file(self, in_path: str, out_path: str) -> None:
         """ transfer a file from local to remote """
 
-        super(Connection, self).put_file(in_path, out_path)
+        await super(Connection, self).put_file(in_path, out_path)
 
         display.vvv("PUT %s TO %s" % (in_path, out_path), host=self.get_option('remote_addr'))
 
@@ -572,10 +575,10 @@ class Connection(ConnectionBase):
             result = SFTP_CONNECTION_CACHE[cache_key] = self._connect().ssh.open_sftp()
             return result
 
-    def fetch_file(self, in_path: str, out_path: str) -> None:
+    async def fetch_file(self, in_path: str, out_path: str) -> None:
         """ save a remote file to the specified path """
 
-        super(Connection, self).fetch_file(in_path, out_path)
+        await super(Connection, self).fetch_file(in_path, out_path)
 
         display.vvv("FETCH %s TO %s" % (in_path, out_path), host=self.get_option('remote_addr'))
 

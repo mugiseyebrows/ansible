@@ -9,14 +9,14 @@ from ansible.plugins.action import ActionBase
 
 class ActionModule(ActionBase):
 
-    def run(self, tmp=None, task_vars=None):
-        super().run(tmp, task_vars)
+    async def run(self, tmp=None, task_vars=None):
+        await super().run(tmp, task_vars)
         del tmp
 
         exec_command = self._connection.exec_command
 
-        def patched_exec_command(*args, **kwargs):
-            rc, stdout, stderr = exec_command(*args, **kwargs)
+        async def patched_exec_command(*args, **kwargs):
+            rc, stdout, stderr = await exec_command(*args, **kwargs)
 
             new_stdout = json.dumps({
                 "rc": rc,
@@ -31,6 +31,6 @@ class ActionModule(ActionBase):
         try:
             # This is done to capture the raw rc/stdio from the module exec
             self._connection.exec_command = patched_exec_command
-            return self._execute_module(task_vars=task_vars)
+            return await self._execute_module(task_vars=task_vars)
         finally:
             self._connection.exec_command = exec_command

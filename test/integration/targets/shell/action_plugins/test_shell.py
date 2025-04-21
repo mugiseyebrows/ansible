@@ -10,8 +10,8 @@ from ansible.plugins.action import ActionBase
 
 class ActionModule(ActionBase):
 
-    def run(self, tmp=None, task_vars=None):
-        result = super(ActionModule, self).run(tmp, task_vars)
+    async def run(self, tmp=None, task_vars=None):
+        result = await super(ActionModule, self).run(tmp, task_vars)
         del tmp  # tmp no longer has any effect
         result['shell'] = self._connection._shell.SHELL_FAMILY
         return result

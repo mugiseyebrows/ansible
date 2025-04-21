@@ -256,14 +256,14 @@ class ActionModule(ActionBase):
         if content is not None:
             os.remove(content_tempfile)
 
-    def _copy_single_file(self, local_file, dest, source_rel, task_vars, tmp, backup):
+    async def _copy_single_file(self, local_file, dest, source_rel, task_vars, tmp, backup):
         if self._play_context.check_mode:
             module_return = dict(changed=True)
             return module_return
 
         # copy the file across to the server
         tmp_src = self._connection._shell.join_path(tmp, 'source')
-        self._transfer_file(local_file, tmp_src)
+        await self._transfer_file(local_file, tmp_src)
 
         copy_args = self._task.args.copy()
         copy_args.update(
@@ -277,13 +277,13 @@ class ActionModule(ActionBase):
         )
         copy_args.pop('content', None)
 
-        copy_result = self._execute_module(module_name="copy",
+        copy_result = await self._execute_module(module_name="copy",
                                            module_args=copy_args,
                                            task_vars=task_vars)
 
         return copy_result
 
-    def _copy_zip_file(self, dest, files, directories, task_vars, tmp, backup):
+    async def _copy_zip_file(self, dest, files, directories, task_vars, tmp, backup):
         # create local zip file containing all the files and directories that
         # need to be copied to the server
         if self._play_context.check_mode:
@@ -306,7 +306,7 @@ class ActionModule(ActionBase):
         # send zip file to remote, file must end in .zip so
         # Com Shell.Application works
         tmp_src = self._connection._shell.join_path(tmp, 'source.zip')
-        self._transfer_file(zip_path, tmp_src)
+        await self._transfer_file(zip_path, tmp_src)
 
         # run the explode operation of win_copy on remote
         copy_args = self._task.args.copy()
@@ -319,18 +319,18 @@ class ActionModule(ActionBase):
             )
         )
         copy_args.pop('content', None)
-        module_return = self._execute_module(module_name='copy',
+        module_return = await self._execute_module(module_name='copy',
                                              module_args=copy_args,
                                              task_vars=task_vars)
         shutil.rmtree(os.path.dirname(zip_path))
         return module_return
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         """ handler for file transfer operations """
         if task_vars is None:
             task_vars = dict()
 
-        result = super(ActionModule, self).run(tmp, task_vars)
+        result = await super(ActionModule, self).run(tmp, task_vars)
         del tmp  # tmp no longer has any effect
 
         source = self._task.args.get('src', None)
@@ -387,7 +387,7 @@ class ActionModule(ActionBase):
                 )
             )
             new_module_args.pop('content', None)
-            result.update(self._execute_module(module_args=new_module_args, task_vars=task_vars))
+            result.update(await self._execute_module(module_args=new_module_args, task_vars=task_vars))
             return result
         # find_needle returns a path that may not have a trailing slash on a
         # directory so we need to find that out first and append at the end
@@ -479,7 +479,7 @@ class ActionModule(ActionBase):
         query_args.pop('src', None)
 
         query_args.pop('content', None)
-        query_return = self._execute_module(module_args=query_args,
+        query_return = await self._execute_module(module_args=query_args,
                                             task_vars=task_vars)
 
         if query_return.get('failed') is True:
@@ -493,7 +493,7 @@ class ActionModule(ActionBase):
             # we only need to copy 1 file, don't mess around with zips
             file_src = query_return['files'][0]['src']
             file_dest = query_return['files'][0]['dest']
-            result.update(self._copy_single_file(file_src, dest, file_dest,
+            result.update(await self._copy_single_file(file_src, dest, file_dest,
                                                  task_vars, self._connection._shell.tmpdir, backup))
             if result.get('failed') is True:
                 result['msg'] = "failed to copy file %s: %s" % (file_src, result['msg'])
@@ -503,7 +503,7 @@ class ActionModule(ActionBase):
             # either multiple files or directories need to be copied, compress
             # to a zip and 'explode' the zip on the server
             # TODO: handle symlinks
-            result.update(self._copy_zip_file(dest, source_files['files'],
+            result.update(await self._copy_zip_file(dest, source_files['files'],
                                               source_files['directories'],
                                               task_vars, self._connection._shell.tmpdir, backup))
             result['changed'] = True
@@ -514,5 +514,5 @@ class ActionModule(ActionBase):
 
         # remove the content tmp file and remote tmp file if it was created
         self._remove_tempfile_if_content_defined(content, content_tempfile)
-        self._remove_tmp_path(self._connection._shell.tmpdir)
+        await self._remove_tmp_path(self._connection._shell.tmpdir)
         return result

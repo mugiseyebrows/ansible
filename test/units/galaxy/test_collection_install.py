@@ -44,11 +44,11 @@ class RequirementCandidates():
         return run
 
 
-def call_galaxy_cli(args):
+async def call_galaxy_cli(args):
     orig = co.GlobalCLIArgs._Singleton__instance
     co.GlobalCLIArgs._Singleton__instance = None
     try:
-        GalaxyCLI(args=['ansible-galaxy', 'collection'] + args).run()
+        await GalaxyCLI(args=['ansible-galaxy', 'collection'] + args).run()
     finally:
         co.GlobalCLIArgs._Singleton__instance = orig
 
@@ -770,7 +770,7 @@ def test_dep_candidate_with_conflict(monkeypatch, tmp_path_factory, galaxy_serve
         collection._resolve_depenency_map(requirements, [galaxy_server], concrete_artifact_cm, None, False, True, False, False, False)
 
 
-def test_install_installed_collection(monkeypatch, tmp_path_factory, galaxy_server):
+async def test_install_installed_collection(monkeypatch, tmp_path_factory, galaxy_server):
 
     mock_installed_collections = MagicMock(return_value=[Candidate('namespace.collection', '1.2.3', None, 'dir', None)])
 
@@ -790,7 +790,7 @@ def test_install_installed_collection(monkeypatch, tmp_path_factory, galaxy_serv
     monkeypatch.setattr(galaxy_server, 'get_collection_versions', mock_get_versions)
 
     cli = GalaxyCLI(args=['ansible-galaxy', 'collection', 'install', 'namespace.collection'])
-    cli.run()
+    await cli.run()
 
     expected = "Nothing to do. All requested collections are already installed. If you want to reinstall them, consider using `--force`."
     assert mock_display.mock_calls[1][1][0] == expected

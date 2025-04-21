@@ -10,7 +10,7 @@ class ActionModule(ActionBase):
 
     BYPASS_HOST_LOOP = True
 
-    def run(self, tmp=None, task_vars=None):
-        result = super(ActionModule, self).run(tmp, task_vars)
+    async def run(self, tmp=None, task_vars=None):
+        result = await super(ActionModule, self).run(tmp, task_vars)
         result['bypass_inventory_hostname'] = task_vars['inventory_hostname']
         return result

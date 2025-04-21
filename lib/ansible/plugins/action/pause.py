@@ -32,12 +32,12 @@ class ActionModule(ActionBase):
 
     BYPASS_HOST_LOOP = True
 
-    def run(self, tmp=None, task_vars=None):
+    async def run(self, tmp=None, task_vars=None):
         """ run the pause action module """
         if task_vars is None:
             task_vars = dict()
 
-        result = super(ActionModule, self).run(tmp, task_vars)
+        result = await super(ActionModule, self).run(tmp, task_vars)
         del tmp  # tmp no longer has any effect
 
         validation_result, new_module_args = self.validate_argument_spec(

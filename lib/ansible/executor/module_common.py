@@ -854,7 +854,7 @@ def ansible_collections_fqn(module_path):
     for i, n in enumerate(path):
         if n == 'ansible_collections':
             if 'modules' in path[i:]:
-                return path[i:]
+                return '.'.join(path[i:])
 
 def _get_ansible_module_fqn(module_path):
     """

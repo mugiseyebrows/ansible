@@ -72,12 +72,15 @@ def _check_working_data_filter() -> bool:
     return ret
 
 
+def path_join(*args):
+    return '/'.join(args)
+
 class GalaxyRole(object):
 
     SUPPORTED_SCMS = set(['git', 'hg'])
-    META_MAIN = (os.path.join('meta', 'main.yml'), os.path.join('meta', 'main.yaml'))
-    META_INSTALL = os.path.join('meta', '.galaxy_install_info')
-    META_REQUIREMENTS = (os.path.join('meta', 'requirements.yml'), os.path.join('meta', 'requirements.yaml'))
+    META_MAIN = (path_join('meta', 'main.yml'), path_join('meta', 'main.yaml'))
+    META_INSTALL = path_join('meta', '.galaxy_install_info')
+    META_REQUIREMENTS = (path_join('meta', 'requirements.yml'), path_join('meta', 'requirements.yaml'))
     ROLE_DIRS = ('defaults', 'files', 'handlers', 'meta', 'tasks', 'templates', 'vars', 'tests')
 
     def __init__(self, galaxy, api, name, src=None, version=None, scm=None, path=None):
@@ -333,8 +336,8 @@ class GalaxyRole(object):
 
             if not tarfile.is_tarfile(tmp_file):
                 raise AnsibleError("the downloaded file does not appear to be a valid tar archive.")
-            else:
-                role_tar_file = tarfile.open(tmp_file, "r")
+
+            with tarfile.open(tmp_file, "r") as role_tar_file:
                 # verify the role's meta file
                 meta_file = None
                 members = role_tar_file.getmembers()
@@ -406,7 +409,8 @@ class GalaxyRole(object):
                                 else:
                                     # Normalize paths that start with the archive dir
                                     attr_value = attr_value.replace(archive_parent_dir, "", 1)
-                                    attr_value = os.path.join(*attr_value.split(os.sep))  # remove leading os.sep
+                                    if attr_value.startswith('/'): # remove leading os.sep
+                                        attr_value = attr_value[1:]
                                     relative_to = ''
 
                                 full_path = os.path.join(resolved_archive, relative_to, attr_value)

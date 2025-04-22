@@ -12,6 +12,7 @@ import sys
 import stat
 import tempfile
 import typing as t
+import re
 
 from collections.abc import Mapping, Sequence
 from jinja2.nativetypes import NativeEnvironment
@@ -64,6 +65,17 @@ def _get_config_label(plugin_type: str, plugin_name: str, config: str) -> str:
 
     return entry
 
+def _win_pathspec(value: str):
+    err = False
+    for path in value.split(os.pathsep):
+        if path.count(':') > 1:
+            err = True
+    if err:
+        value = re.sub('([C-Z]):\\\\', lambda m: m.group(1) + "|" + "\\", value)
+        value = [path.replace("|", ":") for path in value.split(":")]
+    else:
+        value = value.split(os.pathsep)
+    return value
 
 # FIXME: see if we can unify in module_utils with similar function used by argspec
 def ensure_type(value, value_type, origin=None, origin_ftype=None):
@@ -150,7 +162,11 @@ def ensure_type(value, value_type, origin=None, origin_ftype=None):
 
         elif value_type == 'pathspec':
             if isinstance(value, string_types):
-                value = value.split(os.pathsep)
+                if sys.platform == 'win32':
+                    # default value for COLLECTIONS_PATHS has : for path separator, --collections-path probably not
+                    value = _win_pathspec(value)
+                else:
+                    value = value.split(os.pathsep)
 
             if isinstance(value, Sequence):
                 value = [resolve_path(x, basedir=basedir) for x in value]

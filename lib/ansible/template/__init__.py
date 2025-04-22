@@ -10,6 +10,8 @@ except ImportError:
     pass
 import time as _time
 import typing as _t
+import sys
+import platform
 
 from jinja2 import environment as _environment
 
@@ -369,7 +371,10 @@ def generate_ansible_template_vars(path: str, fullpath: str | None = None, dest_
     template_uid: int | str
 
     try:
-        template_uid = _pwd.getpwuid(template_stat.st_uid).pw_name
+        if sys.platform == 'win32':
+            template_uid = template_stat.st_uid
+        else:
+            template_uid = _pwd.getpwuid(template_stat.st_uid).pw_name
     except KeyError:
         template_uid = template_stat.st_uid
 
@@ -395,7 +400,7 @@ def generate_ansible_template_vars(path: str, fullpath: str | None = None, dest_
     )
 
     temp_vars = dict(
-        template_host=_os.uname()[1],
+        template_host=platform.node(),
         template_path=path,
         template_mtime=_datetime.datetime.fromtimestamp(template_stat.st_mtime),
         template_uid=template_uid,

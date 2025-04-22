@@ -1,1 +1,1 @@
-../release.py
+from ansible.release import *

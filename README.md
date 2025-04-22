@@ -6,11 +6,12 @@ What works:
 - playbook cli
 - ssh transport with key-based authentication
 - builtin modules
+- installing roles
 
 What doesn't:
-- `become` feature is not implemented yet
+- privilege escalation (`become`) is not implemented yet
 - password authentication is not implemented yet
-- installing galaxies is not implemented yet
+- installing collections is not implemented yet
 - some tests are broken
 
 # How to run on Windows
@@ -31,7 +32,12 @@ pip install -r requirements.txt
 hacking\env-setup
 ```
 
-4. run playbook
+4. install roles
+```bash
+python lib/ansible/cli/galaxy.py role install user.role
+```
+
+5. run playbook
 ```bash
 python lib/ansible/cli/playbook.py -i path/to/inventory.yml path/to/playbook.yml
 ```

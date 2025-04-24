@@ -7,14 +7,16 @@ What works:
 - ssh transport with key-based authentication
 - builtin modules
 - installing roles
+- installing collections
 
 What doesn't:
 - privilege escalation (`become`) is not implemented yet
-- password authentication is not implemented yet
-- installing collections is not implemented yet
+- password authentication is not implemented yet (wont work on windows)
 - some tests are broken
 
-# How to run on Windows
+Installed collection should work as-is, unless it contains action modules, otherwise it needs patching.
+
+## How to run on Windows
 
 1. clone source code
 ```bash
@@ -34,13 +36,47 @@ hacking\env-setup
 
 4. install roles
 ```bash
-python lib/ansible/cli/galaxy.py role install user.role
+python lib/ansible/cli/galaxy.py role install my_namespace.my_role_name
+```
+
+5. install collections
+```bash
+python lib/ansible/cli/galaxy.py collection install my_namespace.my_collection
 ```
 
 5. run playbook
 ```bash
 python lib/ansible/cli/playbook.py -i path/to/inventory.yml path/to/playbook.yml
 ```
+
+## How to patch a collection
+
+`ActionBase` class have async functions:
+
+```python
+async def run
+async def cleanup
+async def _remote_file_exists
+async def _configure_module
+async def _make_tmp_path
+async def _remove_tmp_path
+async def _transfer_file
+async def _transfer_data
+async def _fixup_perms2
+async def _remote_chmod
+async def _remote_chown
+async def _remote_chgrp
+async def _remote_set_user_facl
+async def _execute_remote_stat
+async def _remote_expand_user
+async def _execute_module
+async def _low_level_execute_command
+async def _get_diff_data
+```
+
+`ActionModule` inherits this functions from `ActionBase` and they should also be `async` if overriden. And they should be called with `await`. And calling function should also be `async`. And dont forget to `await` for `super(ActionModule, self).run(tmp, task_vars)`. 
+
+You can install collection, then patch it inplace (collections are stored in `%USERPROFILE%\.ansible\collections\ansible_collections` by default) or you can fork a collection, patch it and install patched version from git (`python lib/ansible/cli/galaxy.py collection install git@github.com:organization/repo_name.git`)
 
 # Original Readme:
 

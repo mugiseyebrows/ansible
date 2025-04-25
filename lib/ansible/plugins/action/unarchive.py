@@ -74,7 +74,7 @@ class ActionModule(ActionBase):
                     raise AnsibleActionFail(to_text(e))
 
             try:
-                remote_stat = self._execute_remote_stat(dest, all_vars=task_vars, follow=True)
+                remote_stat = await self._execute_remote_stat(dest, all_vars=task_vars, follow=True)
             except AnsibleError as e:
                 raise AnsibleActionFail(to_text(e))
 

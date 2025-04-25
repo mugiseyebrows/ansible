@@ -136,7 +136,7 @@ class ActionModule(ActionBase):
             scope[self.return_results_as_name] = results
             results = scope
 
-        result = super(ActionModule, self).run(task_vars=task_vars)
+        result = await super(ActionModule, self).run(task_vars=task_vars)
 
         if failed:
             result['failed'] = failed

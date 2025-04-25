@@ -768,7 +768,7 @@ class ActionBase(ABC, _AnsiblePluginInfoMixin):
         # features enabled.
         group = self.get_shell_option('common_remote_group')
         if group is not None:
-            res = self._remote_chgrp(remote_paths, group)
+            res = await self._remote_chgrp(remote_paths, group)
             if res['rc'] == 0:
                 # warn user that something might go weirdly here.
                 if self.get_shell_option('world_readable_temp'):

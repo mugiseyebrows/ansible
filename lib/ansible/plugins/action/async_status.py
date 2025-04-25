@@ -18,7 +18,7 @@ class ActionModule(ActionBase):
 
     async def run(self, tmp=None, task_vars=None):
 
-        results = super(ActionModule, self).run(tmp, task_vars)
+        results = await super(ActionModule, self).run(tmp, task_vars)
 
         validation_result, new_module_args = self.validate_argument_spec(
             argument_spec={

@@ -487,7 +487,7 @@ class ActionModule(ActionBase):
             return result
 
         if len(query_return['files']) > 0 or len(query_return['directories']) > 0 and self._connection._shell.tmpdir is None:
-            self._connection._shell.tmpdir = self._make_tmp_path()
+            self._connection._shell.tmpdir = await self._make_tmp_path()
 
         if len(query_return['files']) == 1 and len(query_return['directories']) == 0:
             # we only need to copy 1 file, don't mess around with zips

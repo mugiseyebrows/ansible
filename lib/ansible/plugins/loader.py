@@ -733,6 +733,9 @@ class PluginLoader:
         if check_aliases:
             name = self.aliases.get(name, name)
 
+        if name == 'systemd':
+            name = 'systemd_service'
+
         # The particular cache to look for modules within.  This matches the
         # requested mod_type
         pull_cache = self._plugin_path_cache[suffix]

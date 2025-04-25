@@ -13,3 +13,5 @@ packaging
 # NOTE: When updating the upper bound, also update the latest version used
 # NOTE: in the ansible-galaxy-collection test suite.
 resolvelib >= 0.5.3, < 2.0.0  # dependency resolver used by ansible-galaxy
+colorama
+aioconsole

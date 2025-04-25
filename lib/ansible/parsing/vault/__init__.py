@@ -1043,7 +1043,10 @@ class VaultEditor:
         # check if we have a file descriptor instead of a path
         is_fd = False
         try:
-            is_fd = (isinstance(thefile, int) and fcntl.fcntl(thefile, fcntl.F_GETFD) != -1)
+            if sys.platform == 'win32':
+                is_fd = isinstance(thefile, int)
+            else:
+                is_fd = (isinstance(thefile, int) and fcntl.fcntl(thefile, fcntl.F_GETFD) != -1)
         except Exception:
             pass
 
@@ -1107,13 +1110,16 @@ class VaultEditor:
         if prev is not None:
             # TODO: selinux, ACLs, xattr?
             os.chmod(dest, prev.st_mode)
-            os.chown(dest, prev.st_uid, prev.st_gid)
+            if sys.platform != 'win32':
+                os.chown(dest, prev.st_uid, prev.st_gid)
 
     def _editor_shell_command(self, filename):
         env_editor = C.config.get_config_value('EDITOR')
-        editor = shlex.split(env_editor)
+        if sys.platform == 'win32':
+            editor = [env_editor]
+        else:
+            editor = shlex.split(env_editor)
         editor.append(filename)
-
         return editor
 
 

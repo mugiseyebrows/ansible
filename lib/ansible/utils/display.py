@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import dataclasses
 import datetime
+import asyncio
+import aioconsole
 
 try:
     import curses
@@ -993,7 +995,7 @@ class Display(metaclass=Singleton):
             tty_size = 0
         self.columns = max(79, tty_size - 1)
 
-    def prompt_until(
+    async def prompt_until(
         self,
         msg: str,
         private: bool = False,
@@ -1001,108 +1003,14 @@ class Display(metaclass=Singleton):
         interrupt_input: c.Iterable[bytes] | None = None,
         complete_input: c.Iterable[bytes] | None = None,
     ) -> bytes:
-        if self._final_q:
-            from ansible.executor.process.worker import current_worker
-            self._final_q.send_prompt(
-                worker_id=current_worker.worker_id, prompt=msg, private=private, seconds=seconds,
-                interrupt_input=interrupt_input, complete_input=complete_input
-            )
-            return current_worker.worker_queue.get()
-
-        if HAS_CURSES and not self.setup_curses:
-            setupterm()
-            self.setup_curses = True
-
-        if (
-            self._stdin_fd is None
-            or not os.isatty(self._stdin_fd)
-            # Compare the current process group to the process group associated
-            # with terminal of the given file descriptor to determine if the process
-            # is running in the background.
-            or os.getpgrp() != os.tcgetpgrp(self._stdin_fd)
-        ):
+        if not sys.stdin.isatty():
             raise AnsiblePromptNoninteractive('stdin is not interactive')
-
-        # When seconds/interrupt_input/complete_input are all None, this does mostly the same thing as input/getpass,
-        # but self.prompt may raise a KeyboardInterrupt, which must be caught in the main thread.
-        # If the main thread handled this, it would also need to send a newline to the tty of any hanging pids.
-        # if seconds is None and interrupt_input is None and complete_input is None:
-        #     try:
-        #         return self.prompt(msg, private=private)
-        #     except KeyboardInterrupt:
-        #         # can't catch in the results_thread_main daemon thread
-        #         raise AnsiblePromptInterrupt('user interrupt')
-
-        self.display(msg)
-        result = b''
-        with self._lock:
-            original_stdin_settings = termios.tcgetattr(self._stdin_fd)
-            try:
-                setup_prompt(self._stdin_fd, self._stdout_fd, seconds, not private)
-
-                # flush the buffer to make sure no previous key presses
-                # are read in below
-                termios.tcflush(self._stdin, termios.TCIFLUSH)
-
-                # read input 1 char at a time until the optional timeout or complete/interrupt condition is met
-                return self._read_non_blocking_stdin(echo=not private, seconds=seconds, interrupt_input=interrupt_input, complete_input=complete_input)
-            finally:
-                # restore the old settings for the duped stdin stdin_fd
-                termios.tcsetattr(self._stdin_fd, termios.TCSADRAIN, original_stdin_settings)
-
-    def _read_non_blocking_stdin(
-        self,
-        echo: bool = False,
-        seconds: int | None = None,
-        interrupt_input: c.Iterable[bytes] | None = None,
-        complete_input: c.Iterable[bytes] | None = None,
-    ) -> bytes:
-        if self._final_q:
-            raise NotImplementedError
-
-        if seconds is not None:
-            start = time.time()
-        if interrupt_input is None:
-            try:
-                interrupt = termios.tcgetattr(sys.stdin.buffer.fileno())[6][termios.VINTR]
-            except Exception:
-                interrupt = b'\x03'  # value for Ctrl+C
-
+        future = aioconsole.ainput(msg)
         try:
-            backspace_sequences = [termios.tcgetattr(self._stdin_fd)[6][termios.VERASE]]
-        except Exception:
-            # unsupported/not present, use default
-            backspace_sequences = [b'\x7f', b'\x08']
-
-        result_string = b''
-        while seconds is None or (time.time() - start < seconds):
-            key_pressed = None
-            try:
-                os.set_blocking(self._stdin_fd, False)
-                while key_pressed is None and (seconds is None or (time.time() - start < seconds)):
-                    key_pressed = self._stdin.read(1)
-                    # throttle to prevent excess CPU consumption
-                    time.sleep(C.DEFAULT_INTERNAL_POLL_INTERVAL)
-            finally:
-                os.set_blocking(self._stdin_fd, True)
-                if key_pressed is None:
-                    key_pressed = b''
-
-            if (interrupt_input is None and key_pressed == interrupt) or (interrupt_input is not None and key_pressed.lower() in interrupt_input):
-                clear_line(self._stdout)
-                raise AnsiblePromptInterrupt('user interrupt')
-            if (complete_input is None and key_pressed in (b'\r', b'\n')) or (complete_input is not None and key_pressed.lower() in complete_input):
-                clear_line(self._stdout)
-                break
-            elif key_pressed in backspace_sequences:
-                clear_line(self._stdout)
-                result_string = result_string[:-1]
-                if echo:
-                    self._stdout.write(result_string)
-                self._stdout.flush()
-            else:
-                result_string += key_pressed
-        return result_string
+            user_input = await asyncio.wait_for(future, seconds)
+            return user_input
+        except asyncio.TimeoutError:
+            return
 
     @property
     def _stdin(self) -> t.BinaryIO | None:

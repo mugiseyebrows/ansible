@@ -109,7 +109,7 @@ async def results_task_main(strategy: StrategyBase) -> None:
                     strategy._results.append(result)
             elif isinstance(result, PromptSend):
                 try:
-                    value = display.prompt_until(
+                    value = await display.prompt_until(
                         result.prompt,
                         private=result.private,
                         seconds=result.seconds,
@@ -124,7 +124,7 @@ async def results_task_main(strategy: StrategyBase) -> None:
                         raise AnsibleError(f"{e}") from e
                     except AnsibleError as e:
                         value = e
-                strategy._workers[result.worker_id].worker_queue.put(value)
+                strategy._workers[result.worker_id].worker_queue.put_nowait(value)
             else:
                 display.warning('Received an invalid object (%s) in the result queue: %r' % (type(result), result))
         except (IOError, EOFError):

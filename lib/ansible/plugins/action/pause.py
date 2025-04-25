@@ -104,7 +104,7 @@ class ActionModule(ActionBase):
                 display.display("(ctrl+C then 'C' = continue early, ctrl+C then 'A' = abort)\r")
             else:
                 # corner case where enter does not continue, wait for timeout/interrupt only
-                prompt = "(ctrl+C then 'C' = continue early, ctrl+C then 'A' = abort)\r"
+                prompt = "(Enter to continue early) "
 
             # don't complete on LF/CR; we expect a timeout/interrupt and ignore user input when a pause duration is specified
             default_input_complete = tuple()
@@ -114,7 +114,7 @@ class ActionModule(ActionBase):
 
         user_input = b''
         try:
-            _user_input = display.prompt_until(prompt, private=not echo, seconds=seconds, complete_input=default_input_complete)
+            _user_input = await display.prompt_until(prompt, private=not echo, seconds=seconds, complete_input=default_input_complete)
         except AnsiblePromptInterrupt:
             user_input = None
         except AnsiblePromptNoninteractive:
@@ -130,7 +130,7 @@ class ActionModule(ActionBase):
         if user_input is None:
             prompt = "Press 'C' to continue the play or 'A' to abort \r"
             try:
-                user_input = display.prompt_until(prompt, private=not echo, interrupt_input=(b'a',), complete_input=(b'c',))
+                user_input = await display.prompt_until(prompt, private=not echo, interrupt_input=(b'a',), complete_input=(b'c',))
             except AnsiblePromptInterrupt:
                 raise AnsibleError('user requested abort!')
 

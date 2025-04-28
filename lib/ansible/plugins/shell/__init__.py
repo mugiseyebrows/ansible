@@ -227,8 +227,6 @@ class ShellBase(AnsiblePlugin):
 
     def quote(self, cmd):
         """Returns a shell-escaped string that can be safely used as one token in a shell command line"""
-        if sys.platform == 'win32':
-            return cmd
         return shlex.quote(cmd)
     
     def join(self, cmd_parts):

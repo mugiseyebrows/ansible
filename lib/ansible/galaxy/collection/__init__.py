@@ -1742,7 +1742,10 @@ def _extract_tar_file(tar, filename, b_dest, b_temp_path, expected_hash=None):
                 raise AnsibleError("Cannot extract symlink '%s' in collection: path points to location outside of "
                                    "collection '%s'" % (to_native(filename), b_link_path))
 
-            os.symlink(b_link_path, b_dest_filepath)
+            if sys.platform == 'win32':
+                pass
+            else:
+                os.symlink(b_link_path, b_dest_filepath)
 
         else:
             shutil.move(to_bytes(tmpfile_obj.name, errors='surrogate_or_strict'), b_dest_filepath)

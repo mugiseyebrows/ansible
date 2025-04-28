@@ -123,7 +123,7 @@ def _ansiballz_main(
         z = zipfile.ZipFile(modlib_path, mode='a')
 
         # py3: modlib_path will be text, py2: it's bytes.  Need bytes at the end
-        sitecustomize = 'import sys\nsys.path.insert(0,"%s")\n' % modlib_path
+        sitecustomize = 'import sys\\nsys.path.insert(0,"%s")\\n' % modlib_path
         sitecustomize = sitecustomize.encode('utf-8')
         # Use a ZipInfo to work around zipfile limitation on hosts with
         # clocks set to a pre-1980 year (for instance, Raspberry Pi)

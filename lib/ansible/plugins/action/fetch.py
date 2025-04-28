@@ -142,9 +142,9 @@ class ActionModule(ActionBase):
                 raise AnsibleActionFail("Detected directory traversal, expected to be contained in '%s' but got '%s'" % (original_dest, dest))
 
             if flat:
-                if os.path.isdir(to_bytes(dest, errors='surrogate_or_strict')) and not dest.endswith(os.sep):
+                if os.path.isdir(to_bytes(dest, errors='surrogate_or_strict')) and not dest.endswith('/') and not dest.endswith('\\'):
                     raise AnsibleActionFail("dest is an existing directory, use a trailing slash if you want to fetch src into that directory")
-                if dest.endswith(os.sep):
+                if dest.endswith('/') or dest.endswith('\\'):
                     # if the path ends with "/", we'll use the source filename as the
                     # destination filename
                     base = os.path.basename(source_local)
@@ -153,7 +153,7 @@ class ActionModule(ActionBase):
                     if os.path.isdir(to_bytes(dest, errors='surrogate_or_strict')):
                         raise AnsibleActionFail(
                             f"calculated dest '{dest}' is an existing directory, use another path that does not point to an existing directory")
-                if not dest.startswith("/"):
+                if not os.path.isabs(dest):
                     # if dest does not start with "/", we'll assume a relative path
                     dest = self._loader.path_dwim(dest)
             else:

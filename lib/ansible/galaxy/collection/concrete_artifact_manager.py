@@ -11,6 +11,7 @@ import tarfile
 import subprocess
 import typing as t
 import yaml
+import stat
 
 from contextlib import contextmanager
 from hashlib import sha256
@@ -380,7 +381,10 @@ class ConcreteArtifactsManager:
                 ignore_signature_errors=ignore_signature_errors
             )
         finally:
-            rmtree(b_temp_path)
+            def onexc(func, path, excinfo):
+                os.chmod(path, stat.S_IWRITE)
+                os.unlink(path)
+            rmtree(b_temp_path, onexc=onexc)
 
 
 def parse_scm(collection, version):

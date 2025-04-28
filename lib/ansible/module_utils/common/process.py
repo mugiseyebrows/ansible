@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import sys
 
 from ansible.module_utils.common.file import is_executable
 from ansible.module_utils.common.warnings import deprecate
@@ -31,6 +32,10 @@ def get_bin_path(arg, opt_dirs=None, required=None):
             version="2.21",
             collection_name="ansible.builtin",
         )
+
+    if sys.platform == 'win32':
+        if arg == 'git':
+            arg = 'git.exe'
 
     paths = []
     sbin_paths = ['/sbin', '/usr/sbin', '/usr/local/sbin']

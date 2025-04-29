@@ -65,18 +65,6 @@ def _get_config_label(plugin_type: str, plugin_name: str, config: str) -> str:
 
     return entry
 
-def _win_pathspec(value: str):
-    err = False
-    for path in value.split(os.pathsep):
-        if path.count(':') > 1:
-            err = True
-    if err:
-        value = re.sub('([C-Z]):\\\\', lambda m: m.group(1) + "|" + "\\", value)
-        value = [path.replace("|", ":") for path in value.split(":")]
-    else:
-        value = value.split(os.pathsep)
-    return value
-
 # FIXME: see if we can unify in module_utils with similar function used by argspec
 def ensure_type(value, value_type, origin=None, origin_ftype=None):
     """ return a configuration variable with casting
@@ -162,11 +150,7 @@ def ensure_type(value, value_type, origin=None, origin_ftype=None):
 
         elif value_type == 'pathspec':
             if isinstance(value, string_types):
-                if sys.platform == 'win32':
-                    # default value for COLLECTIONS_PATHS has : for path separator, --collections-path probably not
-                    value = _win_pathspec(value)
-                else:
-                    value = value.split(os.pathsep)
+                value = value.split(os.pathsep)
 
             if isinstance(value, Sequence):
                 value = [resolve_path(x, basedir=basedir) for x in value]
@@ -388,9 +372,14 @@ class ConfigManager(object):
         if isinstance(value, string_types) and (value.startswith('{{') and value.endswith('}}')) and variables is not None:
             # template default values if possible
             # NOTE: cannot use is_template due to circular dep
+            # NOTE: cannot add ansible.plugins.filter.core.FilterModule due to circular dep
             try:
                 # FIXME: This really should be using an immutable sandboxed native environment, not just native environment
-                t = NativeEnvironment().from_string(value)
+                env = NativeEnvironment()
+                env.filters.update({
+                    'searchpath_join': lambda paths: os.pathsep.join(paths)
+                })
+                t = env.from_string(value)
                 value = t.render(variables)
             except Exception:
                 pass  # not templatable

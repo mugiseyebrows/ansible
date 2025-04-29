@@ -612,6 +612,12 @@ def path_join(paths):
         return os.path.join(*paths)
     raise AnsibleTypeError("|path_join expects string or sequence, got %s instead." % type(paths))
 
+def searchpath_join(paths):
+    if isinstance(paths, string_types):
+        return paths
+    if is_sequence(paths):
+        return os.pathsep.join(paths)
+    raise AnsibleTypeError("|searchpath_join expects string or sequence, got %s instead." % type(paths))
 
 def commonpath(paths):
     """
@@ -736,6 +742,7 @@ class FilterModule(object):
             'expanduser': partial(unicode_wrap, os.path.expanduser),
             'expandvars': partial(unicode_wrap, os.path.expandvars),
             'path_join': path_join,
+            'searchpath_join': searchpath_join,
             'realpath': partial(unicode_wrap, os.path.realpath),
             'relpath': partial(unicode_wrap, os.path.relpath),
             'splitext': partial(unicode_wrap, os.path.splitext),

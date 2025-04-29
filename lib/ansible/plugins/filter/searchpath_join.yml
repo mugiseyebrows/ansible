@@ -1,0 +1,23 @@
+DOCUMENTATION:
+  name: searchpath_join
+  author: Doronin Stanislav
+  version_added: "2.20"
+  short_description: Join paths using os.pathsep
+  positional: _input
+  description:
+    - Returns paths joined with ":" or ";" depending on platform.
+  options:
+    _input:
+      description: A path, or a list of paths.
+      type: list
+      elements: str
+      required: true
+
+EXAMPLES: |
+  # "foo:bar" on linux, "foo;bar" on windows
+  {{ ('foo', 'bar') | path_join }}
+
+RETURN:
+  _value:
+    description: Concatenated paths
+    type: str

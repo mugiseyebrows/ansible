@@ -4,10 +4,10 @@ I replaced multiprocessing with coroutines in order to run ansible on Windows wi
 
 What works:
 - playbook cli
+- galaxy cli (searching roles, installing roles, installing collections)
+- vault cli
 - ssh transport with key-based authentication
 - builtin modules
-- installing roles
-- installing collections
 
 What doesn't:
 - privilege escalation (`become`) is not implemented yet
@@ -18,41 +18,44 @@ Installed collection should work as-is, unless it contains action modules, other
 
 ## How to run on Windows
 
-1. clone source code
-```bash
-git clone --depth 1 https://github.com/mugiseyebrows/ansible.git
-```
+Method 1: Build, install and use
 
-2. install requirements (use `venv` if you wish)
-```bash
+```shell
+git clone --depth 1 https://github.com/mugiseyebrows/ansible.git
 cd ansible
 pip install -r requirements.txt
+pip install setuptools wheel build
+python -m build
+pip install dist\ansible_core-2.19.0.dev0-py3-none-any.whl
+ansible-galaxy role install foo.bar
+ansible-galaxy collection install foo.bar
+set PATH=C:\Program Files\Git\usr\bin;%PATH%
+set EDITOR=vim
+ansible-vault create secrets.enc
+ansible-playbook -i inventory.yml -e @secrets.enc playbook.yml
 ```
 
-3. setup env (add ansible/lib to PYTHONPATH)
-```bash
+Method 2: Use without installing
+
+```shell
+git clone --depth 1 https://github.com/mugiseyebrows/ansible.git
+cd ansible
+pip install -r requirements.txt
 hacking\env-setup
-```
-
-4. install roles
-```bash
-python lib/ansible/cli/galaxy.py role install my_namespace.my_role_name
-```
-
-5. install collections
-```bash
-python lib/ansible/cli/galaxy.py collection install my_namespace.my_collection
-```
-
-5. run playbook
-```bash
-python lib/ansible/cli/playbook.py -i path/to/inventory.yml path/to/playbook.yml
+python lib\ansible\cli\galaxy.py role install foo.bar
+python lib\ansible\cli\galaxy.py collection install foo.bar
+set PATH=C:\Program Files\Git\usr\bin;%PATH%
+set EDITOR=vim
+python lib\ansible\cli\vault.py create secrets.enc
+python lib\ansible\cli\playbook.py -i inventory.yml -e @secrets.enc playbook.yml
 ```
 
 ## How to patch a collection
 
-`ActionBase` class have async functions:
+If collection does not have action modules it doesn't need patching. If it contains action modules, dependent modules wont work without patching.
 
+`ActionBase` is base class for `ActionModule`. `ActionBase` class have async functions:
+ 
 ```python
 async def run
 async def cleanup
@@ -87,6 +90,13 @@ repo: https://github.com/mugiseyebrows/posix
 patch: https://github.com/mugiseyebrows/posix/commit/95527b954d4cac2539408601d52f425a16acb4bf
 
 can be installed with `python lib\ansible\cli\galaxy.py collection install git@github.com:mugiseyebrows/posix.git`
+
+## Patched collections
+
+| name                                                                | install                                                                            |
+|---------------------------------------------------------------------|------------------------------------------------------------------------------------|
+| [ansible.posix](https://github.com/mugiseyebrows/ansible.posix)     | `ansible-galaxy collection install git@github.com:mugiseyebrows/ansible.posix.git`   |
+| [ansible.windows](https://github.com/mugiseyebrows/ansible.windows) | `ansible-galaxy collection install git@github.com:mugiseyebrows/ansible.windows.git` |
 
 # Original Readme:
 

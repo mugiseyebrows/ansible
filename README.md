@@ -79,17 +79,9 @@ async def _get_diff_data
 
 `ActionModule` inherits this functions from `ActionBase` and they should also be `async` if overriden. And they should be called with `await`. And calling function should also be `async`. And dont forget to `await` for `super(ActionModule, self).run(tmp, task_vars)`. 
 
-You can install collection, then patch it inplace (collections are stored in `%USERPROFILE%\.ansible\collections\ansible_collections` by default) or you can fork a collection, patch it and install patched version from git (`python lib/ansible/cli/galaxy.py collection install git@github.com:organization/repo_name.git`)
+You can install collection, then patch it inplace (collections are stored in `%USERPROFILE%\.ansible\collections\ansible_collections` by default) or you can fork a collection, patch it and install patched version from git.
 
 You can use script to automate this https://github.com/mugiseyebrows/patch-collection
-
-Here's patched `ansible.posix` collection for example:
-
-repo: https://github.com/mugiseyebrows/posix
-
-patch: https://github.com/mugiseyebrows/posix/commit/95527b954d4cac2539408601d52f425a16acb4bf
-
-can be installed with `python lib\ansible\cli\galaxy.py collection install git@github.com:mugiseyebrows/posix.git`
 
 ## Patched collections
 

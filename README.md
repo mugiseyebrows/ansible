@@ -86,10 +86,11 @@ You can use script to automate this https://github.com/mugiseyebrows/patch-colle
 
 ## Patched collections
 
-| name                                                                | install                                                                            |
-|---------------------------------------------------------------------|------------------------------------------------------------------------------------|
-| [ansible.posix](https://github.com/mugiseyebrows/ansible.posix)     | `ansible-galaxy collection install git@github.com:mugiseyebrows/ansible.posix.git`   |
-| [ansible.windows](https://github.com/mugiseyebrows/ansible.windows) | `ansible-galaxy collection install git@github.com:mugiseyebrows/ansible.windows.git` |
+| name                                                                    | install                                                                                |
+|-------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
+| [ansible.posix](https://github.com/mugiseyebrows/ansible.posix)         | `ansible-galaxy collection install git@github.com:mugiseyebrows/ansible.posix.git`     |
+| [ansible.windows](https://github.com/mugiseyebrows/ansible.windows)     | `ansible-galaxy collection install git@github.com:mugiseyebrows/ansible.windows.git`   |
+| [community.general](https://github.com/mugiseyebrows/community.general) | `ansible-galaxy collection install git@github.com:mugiseyebrows/community.general.git` |
 
 # Original Readme:
 

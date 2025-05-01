@@ -354,14 +354,19 @@ stat:
             version_added: 2.3
 """
 
+HAVE_PWD = False
+HAVE_GRP = False
+
 import errno
 try:
     import grp
+    HAVE_GRP = True
 except ImportError:
     pass
 import os
 try:
     import pwd
+    HAVE_PWD = True
 except ImportError:
     pass
 import stat
@@ -481,17 +486,19 @@ def main():
         output['lnk_source'] = os.path.realpath(b_path)
         output['lnk_target'] = os.readlink(b_path)
 
-    try:  # user data
-        pw = pwd.getpwuid(st.st_uid)
-        output['pw_name'] = pw.pw_name
-    except (TypeError, KeyError):
-        pass
+    if HAVE_PWD:
+        try:  # user data
+            pw = pwd.getpwuid(st.st_uid)
+            output['pw_name'] = pw.pw_name
+        except (TypeError, KeyError):
+            pass
 
-    try:  # group data
-        grp_info = grp.getgrgid(st.st_gid)
-        output['gr_name'] = grp_info.gr_name
-    except (KeyError, ValueError, OverflowError):
-        pass
+    if HAVE_GRP:
+        try:  # group data
+            grp_info = grp.getgrgid(st.st_gid)
+            output['gr_name'] = grp_info.gr_name
+        except (KeyError, ValueError, OverflowError):
+            pass
 
     # checksums
     if output.get('isreg') and output.get('readable'):

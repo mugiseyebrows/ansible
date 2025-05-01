@@ -8,6 +8,7 @@ What works:
 - vault cli
 - ssh transport with key-based authentication
 - builtin modules
+- asynchronous actions
 
 What doesn't:
 - privilege escalation (`become`) is not implemented yet

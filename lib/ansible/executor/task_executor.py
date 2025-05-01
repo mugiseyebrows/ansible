@@ -904,7 +904,7 @@ class TaskExecutor:
             await asyncio.sleep(self._task.poll)
 
             try:
-                async_result = async_handler.run(task_vars=task_vars)
+                async_result = await async_handler.run(task_vars=task_vars)
                 # We do not bail out of the loop in cases where the failure
                 # is associated with a parsing error. The async_runner can
                 # have issues which result in a half-written/unparseable result
@@ -968,9 +968,9 @@ class TaskExecutor:
                 templar=Templar._from_template_engine(templar),
                 shared_loader_obj=self._shared_loader_obj,
             )
-            cleanup_handler.run(task_vars=task_vars)
-            cleanup_handler.cleanup(force=True)
-            async_handler.cleanup(force=True)
+            await cleanup_handler.run(task_vars=task_vars)
+            await cleanup_handler.cleanup(force=True)
+            await async_handler.cleanup(force=True)
             return async_result
 
     def _get_become(self, name):

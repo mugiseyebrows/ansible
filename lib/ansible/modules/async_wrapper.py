@@ -16,13 +16,19 @@ import sys
 import traceback
 import signal
 import time
-import syslog
+HAS_SYSLOG = False
+try:
+    import syslog
+    HAS_SYSLOG = True
+except ImportError:
+    pass
 import multiprocessing
 
 from ansible.module_utils.common.text.converters import to_text, to_bytes
 
-syslog.openlog('ansible-%s' % os.path.basename(__file__))
-syslog.syslog(syslog.LOG_NOTICE, 'Invoked with %s' % " ".join(sys.argv[1:]))
+if HAS_SYSLOG:
+    syslog.openlog('ansible-%s' % os.path.basename(__file__))
+    syslog.syslog(syslog.LOG_NOTICE, 'Invoked with %s' % " ".join(sys.argv[1:]))
 
 # pipe for communication between forked process and parent
 ipc_watcher, ipc_notifier = multiprocessing.Pipe()

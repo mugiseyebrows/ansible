@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import base64
 from ansible.errors import AnsibleConnectionFailure, AnsibleError, AnsibleActionFail, AnsibleActionSkip
 from ansible.module_utils.common.text.converters import to_bytes, to_text
@@ -162,7 +163,11 @@ class ActionModule(ActionBase):
                     target_name = task_vars['inventory_hostname']
                 else:
                     target_name = self._play_context.remote_addr
-                dest = "%s/%s/%s" % (self._loader.path_dwim(dest), target_name, source_local)
+
+                if sys.platform == 'win32':
+                    dest = "%s/%s/%s" % (self._loader.path_dwim(dest), target_name, source_local.replace(":", ""))
+                else:
+                    dest = "%s/%s/%s" % (self._loader.path_dwim(dest), target_name, source_local)
 
             dest = os.path.normpath(dest)
 

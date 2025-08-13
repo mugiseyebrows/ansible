@@ -437,14 +437,14 @@ class GalaxyRole(object):
                             continue
                         raise AnsibleError("Could not update files in %s: %s" % (self.path, to_native(e)))
 
-                # return the parsed yaml metadata
-                display.display("- %s was installed successfully" % str(self))
-                if not (self.src and os.path.isfile(self.src)):
-                    try:
-                        os.unlink(tmp_file)
-                    except (OSError, IOError) as e:
-                        display.warning(u"Unable to remove tmp file (%s): %s" % (tmp_file, to_text(e)))
-                return True
+            # return the parsed yaml metadata
+            display.display("- %s was installed successfully" % str(self))
+            if not (self.src and os.path.isfile(self.src)):
+                try:
+                    os.unlink(tmp_file)
+                except (OSError, IOError) as e:
+                    display.warning(u"Unable to remove tmp file (%s): %s" % (tmp_file, to_text(e)))
+            return True
 
         return False
 
